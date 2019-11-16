@@ -5,6 +5,10 @@
 
 class mmu
 {
+	bool MBC1rules = false;
+	bool MBC2rules = false;
+	uint8_t currentBank = 1;
+
 
 	bool inBios = true;
 
@@ -33,7 +37,7 @@ class mmu
 	uint8_t rom[0x4000];
 
 	//$4000 - $7FFF:	Cartridge ROM - Switchable bank
-	uint8_t romBank[0x4000];
+	uint8_t romBank[0x8000];
 
 	//$8000 - $97FFF:	Character RAM
 	uint8_t CRAM[0x1800];
@@ -44,8 +48,9 @@ class mmu
 	//$9C00 - $9FFF:	BG Map data 2
 	uint8_t BGMap2[0x400];
 
-	//$A000 - $BFFF:	Cartridge RAM
-	uint8_t cartridgeRAM[0x2000];
+	//$A000 - $BFFF:	Cartridge RAM  
+	//0x8000 to support up to 4 RAM banks
+	uint8_t cartridgeRAM[0x8000];
 
 	//$C000 - $CFFF:	RAM Bank 0
 	uint8_t ROMBank[0x1000];
@@ -75,6 +80,8 @@ class mmu
 public:
 	mmu();
 	~mmu();
+
+	void setMBCRule(uint8_t setting);
 
 	uint8_t readByte(uint8_t addr);
 	uint16_t readWord(uint16_t addr);

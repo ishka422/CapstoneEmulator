@@ -12,6 +12,7 @@ using namespace std;
 class CPU
 {
 	mmu* memory;
+	Timer* timer;
 
 	
 
@@ -33,6 +34,8 @@ public:
 	Register16* SP = new Register16();
 	Register16* PC = new Register16();
 	ConditionCodes* CC = new ConditionCodes();
+
+	void process();
 
 	
 	void load(Register* tar, uint8_t value);
@@ -68,7 +71,11 @@ public:
 	void POP(Register16* reg);
 
 	void CALL();
-	CPU(mmu* memory);
+
+	void execute();
+
+
+	CPU(mmu* memory, Timer* timer);
 	~CPU();
 
 

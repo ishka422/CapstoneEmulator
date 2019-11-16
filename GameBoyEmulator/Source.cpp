@@ -1,10 +1,14 @@
 #include <iostream>
 #include <stdio.h>
 #include <fstream>
+#include "mmu.h"
+#include "CPU.h"
 
 using namespace std;
 
 typedef unsigned char BYTE;
+
+const int MAXCYCLES = 69905;
 
 struct HexCharStruct
 {
@@ -45,25 +49,32 @@ long getFileSize(FILE *file)
 int main(int argc, char *argv[]) {
 
 	if (argc > 1) {
-
-
-		cout << argc << "\n";
-		cout << argv[0] << "\n";
 		ifstream gameROM;
 		gameROM.open(argv[1], ios::in | ios::binary | ios::ate);
-
 		int size = gameROM.tellg();
-
-		char *memblock = new char[size];
-
+		char *cartridgeBlock = new char[size];
 		gameROM.seekg(0, ios::beg);
+		gameROM.read(cartridgeBlock, size);
 
-		gameROM.read(memblock, size);
+		int cyclesThisUpdate = 0;
 
-		for (int i = 0; i < size; i++) {
-			if (memblock[i] == 0x7e) {
-				cout << hex(memblock[i]) << endl;
+		mmu* memory();
+		memory.setMBCRules(cartridgeBlock[0x147])
+		CPU* processor(memory);
+		Timer timer(processor);
+
+		 
+		while (true) {
+			cyclesThisUpdate = 0;
+			if (timer.needScreenRefresh()) {
+				while (cyclesThisUpdate < MAXCYCLES) {
+					//process opcodes
+					//cTU += timer.update
+				}					
+				//update time
+			//update screen
 			}
+				
 		}
 		
 		//char contents[static_cast<size_t>(end - start)];

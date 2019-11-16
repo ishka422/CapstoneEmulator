@@ -374,11 +374,536 @@ void CPU::CALL()
 	PC->setLow(lo);
 }
 
-CPU::CPU(mmu* memory)
+void CPU::execute()
+{
+	uint8_t opcode = memory->readByte(PC.getValue);
+	PC->inc();
+	opcodes[opcode]();
+}
+
+CPU::CPU(mmu* memory, Timer* timer)
 {
 
 	map <uint8_t, Action> opcodes;
+	map <uint8_t, Action> CBopcodes;
 	this->memory = memory;
+	this->timer = timer;
+
+	opcodes.insert({ 0x00, [this]() { NOP(); } });
+	opcodes.insert({ 0x01, [this]() { LD_BC_d16(); } });
+	opcodes.insert({ 0x02, [this]() { LD_aBC_A(); } });
+	opcodes.insert({ 0x03, [this]() { INC_BC(); } });
+	opcodes.insert({ 0x04, [this]() { INC_B(); } });
+	opcodes.insert({ 0x05, [this]() { DEC_B(); } });
+	opcodes.insert({ 0x06, [this]() { LD_B_d8(); } });
+	opcodes.insert({ 0x07, [this]() { RLCA(); } });
+	opcodes.insert({ 0x08, [this]() { LD_a16_SP(); } });
+	opcodes.insert({ 0x09, [this]() { ADD_HL_BC(); } });
+	opcodes.insert({ 0x0A, [this]() { LD_A_aBC(); } });
+	opcodes.insert({ 0x0B, [this]() { DEC_BC(); } });
+	opcodes.insert({ 0x0C, [this]() { INC_C(); } });
+	opcodes.insert({ 0x0D, [this]() { DEC_C(); } });
+	opcodes.insert({ 0x0E, [this]() { LD_C_d8(); } });
+	opcodes.insert({ 0x0F, [this]() { RRCA(); } });
+	opcodes.insert({ 0x10, [this]() { STOP(); } });
+	opcodes.insert({ 0x11, [this]() { LD_DE_d16(); } });
+	opcodes.insert({ 0x12, [this]() { LD_aDE_A(); } });
+	opcodes.insert({ 0x13, [this]() { INC_DE(); } });
+	opcodes.insert({ 0x14, [this]() { INC_D(); } });
+	opcodes.insert({ 0x15, [this]() { DEC_D(); } });
+	opcodes.insert({ 0x16, [this]() { LD_D_d8(); } });
+	opcodes.insert({ 0x17, [this]() { RLA(); } });
+	opcodes.insert({ 0x18, [this]() { JR_r8(); } });
+	opcodes.insert({ 0x19, [this]() { ADD_HL_DE(); } });
+	opcodes.insert({ 0x1A, [this]() { LD_A_aDE(); } });
+	opcodes.insert({ 0x1B, [this]() { DEC_DE(); } });
+	opcodes.insert({ 0x1C, [this]() { INC_E(); } });
+	opcodes.insert({ 0x1D, [this]() { DEC_E(); } });
+	opcodes.insert({ 0x1E, [this]() { LD_E_d8(); } });
+	opcodes.insert({ 0x1F, [this]() { RRA(); } });
+	opcodes.insert({ 0x20, [this]() { JR_NZ_r8(); } });
+	opcodes.insert({ 0x21, [this]() { LD_HL_d16(); } });
+	opcodes.insert({ 0x22, [this]() { LD_HLhi_A(); } });
+	opcodes.insert({ 0x23, [this]() { INC_HL(); } });
+	opcodes.insert({ 0x24, [this]() { INC_H(); } });
+	opcodes.insert({ 0x25, [this]() { DEC_H(); } });
+	opcodes.insert({ 0x26, [this]() { LD_H_d8(); } });
+	opcodes.insert({ 0x27, [this]() { DAA(); } });
+	opcodes.insert({ 0x28, [this]() { JR_Z_r8(); } });
+	opcodes.insert({ 0x29, [this]() { ADD_HL_HL(); } });
+	opcodes.insert({ 0x2A, [this]() { LD_A_HLP(); } });
+	opcodes.insert({ 0x2B, [this]() { DEC_HL(); } });
+	opcodes.insert({ 0x2C, [this]() { INC_L(); } });
+	opcodes.insert({ 0x2D, [this]() { DEC_L(); } });
+	opcodes.insert({ 0x2E, [this]() { LD_L_d8(); } });
+	opcodes.insert({ 0x2F, [this]() { CPL(); } });
+	opcodes.insert({ 0x30, [this]() { JR_NC_r8(); } });
+	opcodes.insert({ 0x31, [this]() { LD_SP_d16(); } });
+	opcodes.insert({ 0x32, [this]() { LD_HLlo_A(); } });
+	opcodes.insert({ 0x33, [this]() { INC_SP(); } });
+	opcodes.insert({ 0x34, [this]() { INC_aHL(); } });
+	opcodes.insert({ 0x35, [this]() { DEC_aHL(); } });
+	opcodes.insert({ 0x36, [this]() { LD_aHL_d8(); } });
+	opcodes.insert({ 0x37, [this]() { SCF(); } });
+	opcodes.insert({ 0x38, [this]() { JR_C_r8(); } });
+	opcodes.insert({ 0x39, [this]() { ADD_HL_SP(); } });
+	opcodes.insert({ 0x3A, [this]() { LD_A_HLD(); } });
+	opcodes.insert({ 0x3B, [this]() { DEC_SP(); } });
+	opcodes.insert({ 0x3C, [this]() { INC_A(); } });
+	opcodes.insert({ 0x3D, [this]() { DEC_A(); } });
+	opcodes.insert({ 0x3E, [this]() { LD_A_d8(); } });
+	opcodes.insert({ 0x3F, [this]() { CCF(); } });
+	opcodes.insert({ 0x40, [this]() { LD_B_B(); } });
+	opcodes.insert({ 0x41, [this]() { LD_B_C(); } });
+	opcodes.insert({ 0x42, [this]() { LD_B_D(); } });
+	opcodes.insert({ 0x43, [this]() { LD_B_E(); } });
+	opcodes.insert({ 0x44, [this]() { LD_B_H(); } });
+	opcodes.insert({ 0x45, [this]() { LD_B_L(); } });
+	opcodes.insert({ 0x46, [this]() { LD_B_aHL(); } });
+	opcodes.insert({ 0x47, [this]() { LD_B_A(); } });
+	opcodes.insert({ 0x48, [this]() { LD_C_B(); } });
+	opcodes.insert({ 0x49, [this]() { LD_C_C(); } });
+	opcodes.insert({ 0x4A, [this]() { LD_C_D(); } });
+	opcodes.insert({ 0x4B, [this]() { LD_C_E(); } });
+	opcodes.insert({ 0x4C, [this]() { LD_C_H(); } });
+	opcodes.insert({ 0x4D, [this]() { LD_C_L(); } });
+	opcodes.insert({ 0x4E, [this]() { LD_C_aHL(); } });
+	opcodes.insert({ 0x4F, [this]() { LD_C_A(); } });
+	opcodes.insert({ 0x50, [this]() { LD_D_B(); } });
+	opcodes.insert({ 0x51, [this]() { LD_D_C(); } });
+	opcodes.insert({ 0x52, [this]() { LD_D_D(); } });
+	opcodes.insert({ 0x53, [this]() { LD_D_E(); } });
+	opcodes.insert({ 0x54, [this]() { LD_D_H(); } });
+	opcodes.insert({ 0x55, [this]() { LD_D_L(); } });
+	opcodes.insert({ 0x56, [this]() { LD_D_aHL(); } });
+	opcodes.insert({ 0x57, [this]() { LD_D_A(); } });
+	opcodes.insert({ 0x58, [this]() { LD_E_B(); } });
+	opcodes.insert({ 0x59, [this]() { LD_E_C(); } });
+	opcodes.insert({ 0x5A, [this]() { LD_E_D(); } });
+	opcodes.insert({ 0x5B, [this]() { LD_E_E(); } });
+	opcodes.insert({ 0x5C, [this]() { LD_E_H(); } });
+	opcodes.insert({ 0x5D, [this]() { LD_E_L(); } });
+	opcodes.insert({ 0x5E, [this]() { LD_E_aHL(); } });
+	opcodes.insert({ 0x5F, [this]() { LD_E_A(); } });
+	opcodes.insert({ 0x60, [this]() { LD_H_B(); } });
+	opcodes.insert({ 0x61, [this]() { LD_H_C(); } });
+	opcodes.insert({ 0x62, [this]() { LD_H_D(); } });
+	opcodes.insert({ 0x63, [this]() { LD_H_E(); } });
+	opcodes.insert({ 0x64, [this]() { LD_H_H(); } });
+	opcodes.insert({ 0x65, [this]() { LD_H_L(); } });
+	opcodes.insert({ 0x66, [this]() { LD_H_aHL(); } });
+	opcodes.insert({ 0x67, [this]() { LD_H_A(); } });
+	opcodes.insert({ 0x68, [this]() { LD_L_B(); } });
+	opcodes.insert({ 0x69, [this]() { LD_L_C(); } });
+	opcodes.insert({ 0x6A, [this]() { LD_L_D(); } });
+	opcodes.insert({ 0x6B, [this]() { LD_L_E(); } });
+	opcodes.insert({ 0x6C, [this]() { LD_L_H(); } });
+	opcodes.insert({ 0x6D, [this]() { LD_L_L(); } });
+	opcodes.insert({ 0x6E, [this]() { LD_L_aHL(); } });
+	opcodes.insert({ 0x6F, [this]() { LD_L_A(); } });
+	opcodes.insert({ 0x70, [this]() { LD_aHL_B(); } });
+	opcodes.insert({ 0x71, [this]() { LD_aHL_C(); } });
+	opcodes.insert({ 0x72, [this]() { LD_aHL_D(); } });
+	opcodes.insert({ 0x73, [this]() { LD_aHL_E(); } });
+	opcodes.insert({ 0x74, [this]() { LD_aHL_H(); } });
+	opcodes.insert({ 0x75, [this]() { LD_aHL_L(); } });
+	opcodes.insert({ 0x76, [this]() { HALT(); } });
+	opcodes.insert({ 0x77, [this]() { LD_aHL_A(); } });
+	opcodes.insert({ 0x78, [this]() { LD_A_B(); } });
+	opcodes.insert({ 0x79, [this]() { LD_A_C(); } });
+	opcodes.insert({ 0x7A, [this]() { LD_A_D(); } });
+	opcodes.insert({ 0x7B, [this]() { LD_A_E(); } });
+	opcodes.insert({ 0x7C, [this]() { LD_A_H(); } });
+	opcodes.insert({ 0x7D, [this]() { LD_A_L(); } });
+	opcodes.insert({ 0x7E, [this]() { LD_A_aHL(); } });
+	opcodes.insert({ 0x7F, [this]() { LD_A_A(); } });
+	opcodes.insert({ 0x80, [this]() { ADD_A_B(); } });
+	opcodes.insert({ 0x81, [this]() { ADD_A_C(); } });
+	opcodes.insert({ 0x82, [this]() { ADD_A_D(); } });
+	opcodes.insert({ 0x83, [this]() { ADD_A_E(); } });
+	opcodes.insert({ 0x84, [this]() { ADD_A_H(); } });
+	opcodes.insert({ 0x85, [this]() { ADD_A_L(); } });
+	opcodes.insert({ 0x86, [this]() { ADD_A_aHL(); } });
+	opcodes.insert({ 0x87, [this]() { ADD_A_A(); } });
+	opcodes.insert({ 0x88, [this]() { ADC_A_B(); } });
+	opcodes.insert({ 0x89, [this]() { ADC_A_C(); } });
+	opcodes.insert({ 0x8A, [this]() { ADC_A_D(); } });
+	opcodes.insert({ 0x8B, [this]() { ADC_A_E(); } });
+	opcodes.insert({ 0x8C, [this]() { ADC_A_H(); } });
+	opcodes.insert({ 0x8D, [this]() { ADC_A_L(); } });
+	opcodes.insert({ 0x8E, [this]() { ADC_A_aHL(); } });
+	opcodes.insert({ 0x8F, [this]() { ADC_A_A(); } });
+	opcodes.insert({ 0x90, [this]() { SUB_B(); } });
+	opcodes.insert({ 0x91, [this]() { SUB_C(); } });
+	opcodes.insert({ 0x92, [this]() { SUB_D(); } });
+	opcodes.insert({ 0x93, [this]() { SUB_E(); } });
+	opcodes.insert({ 0x94, [this]() { SUB_H(); } });
+	opcodes.insert({ 0x95, [this]() { SUB_L(); } });
+	opcodes.insert({ 0x96, [this]() { SUB_aHL(); } });
+	opcodes.insert({ 0x97, [this]() { SUB_A(); } });
+	opcodes.insert({ 0x98, [this]() { SBC_A_B(); } });
+	opcodes.insert({ 0x99, [this]() { SBC_A_C(); } });
+	opcodes.insert({ 0x9A, [this]() { SBC_A_D(); } });
+	opcodes.insert({ 0x9B, [this]() { SBC_A_E(); } });
+	opcodes.insert({ 0x9C, [this]() { SBC_A_H(); } });
+	opcodes.insert({ 0x9D, [this]() { SBC_A_L(); } });
+	opcodes.insert({ 0x9E, [this]() { SBC_A_aHL(); } });
+	opcodes.insert({ 0x9F, [this]() { SBC_A_A(); } });
+	opcodes.insert({ 0xA0, [this]() { AND_B(); } });
+	opcodes.insert({ 0xA1, [this]() { AND_C(); } });
+	opcodes.insert({ 0xA2, [this]() { AND_D(); } });
+	opcodes.insert({ 0xA3, [this]() { AND_E(); } });
+	opcodes.insert({ 0xA4, [this]() { AND_H(); } });
+	opcodes.insert({ 0xA5, [this]() { AND_L(); } });
+	opcodes.insert({ 0xA6, [this]() { AND_aHL(); } });
+	opcodes.insert({ 0xA7, [this]() { AND_A(); } });
+	opcodes.insert({ 0xA8, [this]() { XOR_B(); } });
+	opcodes.insert({ 0xA9, [this]() { XOR_C(); } });
+	opcodes.insert({ 0xAA, [this]() { XOR_D(); } });
+	opcodes.insert({ 0xAB, [this]() { XOR_E(); } });
+	opcodes.insert({ 0xAC, [this]() { XOR_H(); } });
+	opcodes.insert({ 0xAD, [this]() { XOR_L(); } });
+	opcodes.insert({ 0xAE, [this]() { XOR_aHL(); } });
+	opcodes.insert({ 0xAF, [this]() { XOR_A(); } });
+	opcodes.insert({ 0xB0, [this]() { OR_B(); } });
+	opcodes.insert({ 0xB1, [this]() { OR_C(); } });
+	opcodes.insert({ 0xB2, [this]() { OR_D(); } });
+	opcodes.insert({ 0xB3, [this]() { OR_E(); } });
+	opcodes.insert({ 0xB4, [this]() { OR_H(); } });
+	opcodes.insert({ 0xB5, [this]() { OR_L(); } });
+	opcodes.insert({ 0xB6, [this]() { OR_aHL(); } });
+	opcodes.insert({ 0xB7, [this]() { OR_A(); } });
+	opcodes.insert({ 0xB8, [this]() { CP_B(); } });
+	opcodes.insert({ 0xB9, [this]() { CP_C(); } });
+	opcodes.insert({ 0xBA, [this]() { CP_D(); } });
+	opcodes.insert({ 0xBB, [this]() { CP_E(); } });
+	opcodes.insert({ 0xBC, [this]() { CP_H(); } });
+	opcodes.insert({ 0xBD, [this]() { CP_L(); } });
+	opcodes.insert({ 0xBE, [this]() { CP_aHL(); } });
+	opcodes.insert({ 0xBF, [this]() { CP_A(); } });
+	opcodes.insert({ 0xC0, [this]() { RET_NZ(); } });
+	opcodes.insert({ 0xC1, [this]() { POP_BC(); } });
+	opcodes.insert({ 0xC2, [this]() { JP_NZ_a16(); } });
+	opcodes.insert({ 0xC3, [this]() { JP_a16(); } });
+	opcodes.insert({ 0xC4, [this]() { CALL_NZ_a16(); } });
+	opcodes.insert({ 0xC5, [this]() { PUSH_BC(); } });
+	opcodes.insert({ 0xC6, [this]() { ADD_A_d8(); } });
+	opcodes.insert({ 0xC7, [this]() { RST_00H(); } });
+	opcodes.insert({ 0xC8, [this]() { RET_Z(); } });
+	opcodes.insert({ 0xC9, [this]() { RET(); } });
+	opcodes.insert({ 0xCA, [this]() { JP_Z_a16(); } });
+	opcodes.insert({ 0xCB, [this]() { PREFIX_CB(); } });
+	opcodes.insert({ 0xCC, [this]() { CALL_Z_a16(); } });
+	opcodes.insert({ 0xCD, [this]() { CALL_a16(); } });
+	opcodes.insert({ 0xCE, [this]() { ADC_A_d8(); } });
+	opcodes.insert({ 0xCF, [this]() { RST_08H(); } });
+	opcodes.insert({ 0xD0, [this]() { RET_NC(); } });
+	opcodes.insert({ 0xD1, [this]() { POP_DE(); } });
+	opcodes.insert({ 0xD2, [this]() { JP_NC_a16(); } });
+	opcodes.insert({ 0xD3, [this]() { RES_D3(); } });
+	opcodes.insert({ 0xD4, [this]() { CALL_NC_a16(); } });
+	opcodes.insert({ 0xD5, [this]() { PUSH_DE(); } });
+	opcodes.insert({ 0xD6, [this]() { SUB_d8(); } });
+	opcodes.insert({ 0xD7, [this]() { RST_10H(); } });
+	opcodes.insert({ 0xD8, [this]() { RET_C(); } });
+	opcodes.insert({ 0xD9, [this]() { RETI(); } });
+	opcodes.insert({ 0xDA, [this]() { JP_C_a16(); } });
+	opcodes.insert({ 0xDB, [this]() { RES_DB(); } });
+	opcodes.insert({ 0xDC, [this]() { CALL_C_a16(); } });
+	opcodes.insert({ 0xDD, [this]() { RES_DD(); } });
+	opcodes.insert({ 0xDE, [this]() { SBC_A_d8(); } });
+	opcodes.insert({ 0xDF, [this]() { RST_18H(); } });
+	opcodes.insert({ 0xE0, [this]() { LDH_a8_A(); } });
+	opcodes.insert({ 0xE1, [this]() { POP_HL(); } });
+	opcodes.insert({ 0xE2, [this]() { LD_C_A(); } });
+	opcodes.insert({ 0xE3, [this]() { RES_E3(); } });
+	opcodes.insert({ 0xE4, [this]() { RES_E4(); } });
+	opcodes.insert({ 0xE5, [this]() { PUSH_HL(); } });
+	opcodes.insert({ 0xE6, [this]() { AND_d8(); } });
+	opcodes.insert({ 0xE7, [this]() { RST_20H(); } });
+	opcodes.insert({ 0xE8, [this]() { ADD_SP_r8(); } });
+	opcodes.insert({ 0xE9, [this]() { JP_aHL(); } });
+	opcodes.insert({ 0xEA, [this]() { LD_a16_A(); } });
+	opcodes.insert({ 0xEB, [this]() { RES_EA(); } });
+	opcodes.insert({ 0xEC, [this]() { RES_EB(); } });
+	opcodes.insert({ 0xED, [this]() { RES_EC(); } });
+	opcodes.insert({ 0xEE, [this]() { XOR_d8(); } });
+	opcodes.insert({ 0xEF, [this]() { RST_28H(); } });
+	opcodes.insert({ 0xF0, [this]() { LDH_A_a8(); } });
+	opcodes.insert({ 0xF1, [this]() { POP_AF(); } });
+	opcodes.insert({ 0xF2, [this]() { LA_A_C(); } });
+	opcodes.insert({ 0xF3, [this]() { DI(); } });
+	opcodes.insert({ 0xF4, [this]() { RES_F4(); } });
+	opcodes.insert({ 0xF5, [this]() { PUSH_AF(); } });
+	opcodes.insert({ 0xF6, [this]() { OR_d8(); } });
+	opcodes.insert({ 0xF7, [this]() { RST_30H(); } });
+	opcodes.insert({ 0xF8, [this]() { LD_HL_SPpr8(); } });
+	opcodes.insert({ 0xF9, [this]() { LD_SP_HL(); } });
+	opcodes.insert({ 0xFA, [this]() { LD_A_a16(); } });
+	opcodes.insert({ 0xFB, [this]() { EI(); } });
+	opcodes.insert({ 0xFC, [this]() { RES_FC(); } });
+	opcodes.insert({ 0xFD, [this]() { RES_FD(); } });
+	opcodes.insert({ 0xFE, [this]() { CP_d8(); } });
+	opcodes.insert({ 0xFF, [this]() { RST_38H(); } });
+
+
+
+	CBopcodes.insert({ 0x00, [this]() {  RLC_B(); } });
+	CBopcodes.insert({ 0x01, [this]() {  RLC_C(); } });
+	CBopcodes.insert({ 0x02, [this]() {  RLC_D(); } });
+	CBopcodes.insert({ 0x03, [this]() {  RLC_E(); } });
+	CBopcodes.insert({ 0x04, [this]() {  RLC_H(); } });
+	CBopcodes.insert({ 0x05, [this]() {  RLC_L(); } });
+	CBopcodes.insert({ 0x06, [this]() {  RLC_aHL(); } });
+	CBopcodes.insert({ 0x07, [this]() {  RLC_A(); } });
+	CBopcodes.insert({ 0x08, [this]() {  RRC_B(); } });
+	CBopcodes.insert({ 0x09, [this]() {  RRC_C(); } });
+	CBopcodes.insert({ 0x0A, [this]() {  RRC_D(); } });
+	CBopcodes.insert({ 0x0B, [this]() {  RRC_E(); } });
+	CBopcodes.insert({ 0x0C, [this]() {  RRC_H(); } });
+	CBopcodes.insert({ 0x0D, [this]() {  RRC_L(); } });
+	CBopcodes.insert({ 0x0E, [this]() {  RRC_aHL(); } });
+	CBopcodes.insert({ 0x0F, [this]() {  RRC_A(); } });
+	CBopcodes.insert({ 0x10, [this]() {  RL_B(); } });
+	CBopcodes.insert({ 0x11, [this]() {  RL_C(); } });
+	CBopcodes.insert({ 0x12, [this]() {  RL_D(); } });
+	CBopcodes.insert({ 0x13, [this]() {  RL_E(); } });
+	CBopcodes.insert({ 0x14, [this]() {  RL_H(); } });
+	CBopcodes.insert({ 0x15, [this]() {  RL_L(); } });
+	CBopcodes.insert({ 0x16, [this]() {  RL_aHL(); } });
+	CBopcodes.insert({ 0x17, [this]() {  RL_A(); } });
+	CBopcodes.insert({ 0x18, [this]() {  RR_B(); } });
+	CBopcodes.insert({ 0x19, [this]() {  RR_C(); } });
+	CBopcodes.insert({ 0x1A, [this]() {  RR_D(); } });
+	CBopcodes.insert({ 0x1B, [this]() {  RR_E(); } });
+	CBopcodes.insert({ 0x1C, [this]() {  RR_H(); } });
+	CBopcodes.insert({ 0x1D, [this]() {  RR_L(); } });
+	CBopcodes.insert({ 0x1E, [this]() {  RR_aHL(); } });
+	CBopcodes.insert({ 0x1F, [this]() {  RR_A(); } });
+	CBopcodes.insert({ 0x20, [this]() {  SLA_B(); } });
+	CBopcodes.insert({ 0x21, [this]() {  SLA_C(); } });
+	CBopcodes.insert({ 0x22, [this]() {  SLA_D(); } });
+	CBopcodes.insert({ 0x23, [this]() {  SLA_E(); } });
+	CBopcodes.insert({ 0x24, [this]() {  SLA_H(); } });
+	CBopcodes.insert({ 0x25, [this]() {  SLA_L(); } });
+	CBopcodes.insert({ 0x26, [this]() {  SLA_aHL(); } });
+	CBopcodes.insert({ 0x27, [this]() {  SLA_A(); } });
+	CBopcodes.insert({ 0x28, [this]() {  SRA_B(); } });
+	CBopcodes.insert({ 0x29, [this]() {  SRA_C(); } });
+	CBopcodes.insert({ 0x2A, [this]() {  SRA_D(); } });
+	CBopcodes.insert({ 0x2B, [this]() {  SRA_E(); } });
+	CBopcodes.insert({ 0x2C, [this]() {  SRA_H(); } });
+	CBopcodes.insert({ 0x2D, [this]() {  SRA_L(); } });
+	CBopcodes.insert({ 0x2E, [this]() {  SRA_aHL(); } });
+	CBopcodes.insert({ 0x2F, [this]() {  SRA_A(); } });
+	CBopcodes.insert({ 0x30, [this]() {  SWAP_B(); } });
+	CBopcodes.insert({ 0x31, [this]() {  SWAP_C(); } });
+	CBopcodes.insert({ 0x32, [this]() {  SWAP_D(); } });
+	CBopcodes.insert({ 0x33, [this]() {  SWAP_E(); } });
+	CBopcodes.insert({ 0x34, [this]() {  SWAP_H(); } });
+	CBopcodes.insert({ 0x35, [this]() {  SWAP_L(); } });
+	CBopcodes.insert({ 0x36, [this]() {  SWAP_aHL(); } });
+	CBopcodes.insert({ 0x37, [this]() {  SWAP_A(); } });
+	CBopcodes.insert({ 0x38, [this]() {  SRL_B(); } });
+	CBopcodes.insert({ 0x39, [this]() {  SRL_C(); } });
+	CBopcodes.insert({ 0x3A, [this]() {  SRL_D(); } });
+	CBopcodes.insert({ 0x3B, [this]() {  SRL_E(); } });
+	CBopcodes.insert({ 0x3C, [this]() {  SRL_H(); } });
+	CBopcodes.insert({ 0x3D, [this]() {  SRL_L(); } });
+	CBopcodes.insert({ 0x3E, [this]() {  SRL_aHL(); } });
+	CBopcodes.insert({ 0x3F, [this]() {  SRL_A(); } });
+	CBopcodes.insert({ 0x40, [this]() {  BIT_0_B(); } });
+	CBopcodes.insert({ 0x41, [this]() {  BIT_0_C(); } });
+	CBopcodes.insert({ 0x42, [this]() {  BIT_0_D(); } });
+	CBopcodes.insert({ 0x43, [this]() {  BIT_0_E(); } });
+	CBopcodes.insert({ 0x44, [this]() {  BIT_0_H(); } });
+	CBopcodes.insert({ 0x45, [this]() {  BIT_0_L(); } });
+	CBopcodes.insert({ 0x46, [this]() {  BIT_0_aHL(); } });
+	CBopcodes.insert({ 0x47, [this]() {  BIT_0_A(); } });
+	CBopcodes.insert({ 0x48, [this]() {  BIT_1_B(); } });
+	CBopcodes.insert({ 0x49, [this]() {  BIT_1_C(); } });
+	CBopcodes.insert({ 0x4A, [this]() {  BIT_1_D(); } });
+	CBopcodes.insert({ 0x4B, [this]() {  BIT_1_E(); } });
+	CBopcodes.insert({ 0x4C, [this]() {  BIT_1_H(); } });
+	CBopcodes.insert({ 0x4D, [this]() {  BIT_1_L(); } });
+	CBopcodes.insert({ 0x4E, [this]() {  BIT_1_aHL(); } });
+	CBopcodes.insert({ 0x4F, [this]() {  BIT_1_A(); } });
+	CBopcodes.insert({ 0x50, [this]() {  BIT_2_B(); } });
+	CBopcodes.insert({ 0x51, [this]() {  BIT_2_C(); } });
+	CBopcodes.insert({ 0x52, [this]() {  BIT_2_D(); } });
+	CBopcodes.insert({ 0x53, [this]() {  BIT_2_E(); } });
+	CBopcodes.insert({ 0x54, [this]() {  BIT_2_H(); } });
+	CBopcodes.insert({ 0x55, [this]() {  BIT_2_L(); } });
+	CBopcodes.insert({ 0x56, [this]() {  BIT_2_aHL(); } });
+	CBopcodes.insert({ 0x57, [this]() {  BIT_2_A(); } });
+	CBopcodes.insert({ 0x58, [this]() {  BIT_3_B(); } });
+	CBopcodes.insert({ 0x59, [this]() {  BIT_3_C(); } });
+	CBopcodes.insert({ 0x5A, [this]() {  BIT_3_D(); } });
+	CBopcodes.insert({ 0x5B, [this]() {  BIT_3_E(); } });
+	CBopcodes.insert({ 0x5C, [this]() {  BIT_3_H(); } });
+	CBopcodes.insert({ 0x5D, [this]() {  BIT_3_L(); } });
+	CBopcodes.insert({ 0x5E, [this]() {  BIT_3_aHL(); } });
+	CBopcodes.insert({ 0x5F, [this]() {  BIT_3_A(); } });
+	CBopcodes.insert({ 0x60, [this]() {  BIT_4_B(); } });
+	CBopcodes.insert({ 0x61, [this]() {  BIT_4_C(); } });
+	CBopcodes.insert({ 0x62, [this]() {  BIT_4_D(); } });
+	CBopcodes.insert({ 0x63, [this]() {  BIT_4_E(); } });
+	CBopcodes.insert({ 0x64, [this]() {  BIT_4_H(); } });
+	CBopcodes.insert({ 0x65, [this]() {  BIT_4_L(); } });
+	CBopcodes.insert({ 0x66, [this]() {  BIT_4_aHL(); } });
+	CBopcodes.insert({ 0x67, [this]() {  BIT_4_A(); } });
+	CBopcodes.insert({ 0x68, [this]() {  BIT_5_B(); } });
+	CBopcodes.insert({ 0x69, [this]() {  BIT_5_C(); } });
+	CBopcodes.insert({ 0x6A, [this]() {  BIT_5_D(); } });
+	CBopcodes.insert({ 0x6B, [this]() {  BIT_5_E(); } });
+	CBopcodes.insert({ 0x6C, [this]() {  BIT_5_H(); } });
+	CBopcodes.insert({ 0x6D, [this]() {  BIT_5_L(); } });
+	CBopcodes.insert({ 0x6E, [this]() {  BIT_5_aHL(); } });
+	CBopcodes.insert({ 0x6F, [this]() {  BIT_5_A(); } });
+	CBopcodes.insert({ 0x70, [this]() {  BIT_6_B(); } });
+	CBopcodes.insert({ 0x71, [this]() {  BIT_6_C(); } });
+	CBopcodes.insert({ 0x72, [this]() {  BIT_6_D(); } });
+	CBopcodes.insert({ 0x73, [this]() {  BIT_6_E(); } });
+	CBopcodes.insert({ 0x74, [this]() {  BIT_6_H(); } });
+	CBopcodes.insert({ 0x75, [this]() {  BIT_6_L(); } });
+	CBopcodes.insert({ 0x76, [this]() {  BIT_6_aHL(); } });
+	CBopcodes.insert({ 0x77, [this]() {  BIT_6_A(); } });
+	CBopcodes.insert({ 0x78, [this]() {  BIT_7_B(); } });
+	CBopcodes.insert({ 0x79, [this]() {  BIT_7_C(); } });
+	CBopcodes.insert({ 0x7A, [this]() {  BIT_7_D(); } });
+	CBopcodes.insert({ 0x7B, [this]() {  BIT_7_E(); } });
+	CBopcodes.insert({ 0x7C, [this]() {  BIT_7_H(); } });
+	CBopcodes.insert({ 0x7D, [this]() {  BIT_7_L(); } });
+	CBopcodes.insert({ 0x7E, [this]() {  BIT_7_aHL(); } });
+	CBopcodes.insert({ 0x7F, [this]() {  BIT_7_A(); } });
+	CBopcodes.insert({ 0x80, [this]() {  RES_0_B(); } });
+	CBopcodes.insert({ 0x81, [this]() {  RES_0_C(); } });
+	CBopcodes.insert({ 0x82, [this]() {  RES_0_D(); } });
+	CBopcodes.insert({ 0x83, [this]() {  RES_0_E(); } });
+	CBopcodes.insert({ 0x84, [this]() {  RES_0_H(); } });
+	CBopcodes.insert({ 0x85, [this]() {  RES_0_L(); } });
+	CBopcodes.insert({ 0x86, [this]() {  RES_0_aHL(); } });
+	CBopcodes.insert({ 0x87, [this]() {  RES_0_A(); } });
+	CBopcodes.insert({ 0x88, [this]() {  RES_1_B(); } });
+	CBopcodes.insert({ 0x89, [this]() {  RES_1_C(); } });
+	CBopcodes.insert({ 0x8A, [this]() {  RES_1_D(); } });
+	CBopcodes.insert({ 0x8B, [this]() {  RES_1_E(); } });
+	CBopcodes.insert({ 0x8C, [this]() {  RES_1_H(); } });
+	CBopcodes.insert({ 0x8D, [this]() {  RES_1_L(); } });
+	CBopcodes.insert({ 0x8E, [this]() {  RES_1_aHL(); } });
+	CBopcodes.insert({ 0x8F, [this]() {  RES_1_A(); } });
+	CBopcodes.insert({ 0x90, [this]() {  RES_2_B(); } });
+	CBopcodes.insert({ 0x91, [this]() {  RES_2_C(); } });
+	CBopcodes.insert({ 0x92, [this]() {  RES_2_D(); } });
+	CBopcodes.insert({ 0x93, [this]() {  RES_2_E(); } });
+	CBopcodes.insert({ 0x94, [this]() {  RES_2_H(); } });
+	CBopcodes.insert({ 0x95, [this]() {  RES_2_L(); } });
+	CBopcodes.insert({ 0x96, [this]() {  RES_2_aHL(); } });
+	CBopcodes.insert({ 0x97, [this]() {  RES_2_A(); } });
+	CBopcodes.insert({ 0x98, [this]() {  RES_3_B(); } });
+	CBopcodes.insert({ 0x99, [this]() {  RES_3_C(); } });
+	CBopcodes.insert({ 0x9A, [this]() {  RES_3_D(); } });
+	CBopcodes.insert({ 0x9B, [this]() {  RES_3_E(); } });
+	CBopcodes.insert({ 0x9C, [this]() {  RES_3_H(); } });
+	CBopcodes.insert({ 0x9D, [this]() {  RES_3_L(); } });
+	CBopcodes.insert({ 0x9E, [this]() {  RES_3_aHL(); } });
+	CBopcodes.insert({ 0x9F, [this]() {  RES_3_A(); } });
+	CBopcodes.insert({ 0xA0, [this]() {  RES_4_B(); } });
+	CBopcodes.insert({ 0xA1, [this]() {  RES_4_C(); } });
+	CBopcodes.insert({ 0xA2, [this]() {  RES_4_D(); } });
+	CBopcodes.insert({ 0xA3, [this]() {  RES_4_E(); } });
+	CBopcodes.insert({ 0xA4, [this]() {  RES_4_H(); } });
+	CBopcodes.insert({ 0xA5, [this]() {  RES_4_L(); } });
+	CBopcodes.insert({ 0xA6, [this]() {  RES_4_aHL(); } });
+	CBopcodes.insert({ 0xA7, [this]() {  RES_4_A(); } });
+	CBopcodes.insert({ 0xA8, [this]() {  RES_5_B(); } });
+	CBopcodes.insert({ 0xA9, [this]() {  RES_5_C(); } });
+	CBopcodes.insert({ 0xAA, [this]() {  RES_5_D(); } });
+	CBopcodes.insert({ 0xAB, [this]() {  RES_5_E(); } });
+	CBopcodes.insert({ 0xAC, [this]() {  RES_5_H(); } });
+	CBopcodes.insert({ 0xAD, [this]() {  RES_5_L(); } });
+	CBopcodes.insert({ 0xAE, [this]() {  RES_5_aHL(); } });
+	CBopcodes.insert({ 0xAF, [this]() {  RES_5_A(); } });
+	CBopcodes.insert({ 0xB0, [this]() {  RES_6_B(); } });
+	CBopcodes.insert({ 0xB1, [this]() {  RES_6_C(); } });
+	CBopcodes.insert({ 0xB2, [this]() {  RES_6_D(); } });
+	CBopcodes.insert({ 0xB3, [this]() {  RES_6_E(); } });
+	CBopcodes.insert({ 0xB4, [this]() {  RES_6_H(); } });
+	CBopcodes.insert({ 0xB5, [this]() {  RES_6_L(); } });
+	CBopcodes.insert({ 0xB6, [this]() {  RES_6_aHL(); } });
+	CBopcodes.insert({ 0xB7, [this]() {  RES_6_A(); } });
+	CBopcodes.insert({ 0xB8, [this]() {  RES_7_B(); } });
+	CBopcodes.insert({ 0xB9, [this]() {  RES_7_C(); } });
+	CBopcodes.insert({ 0xBA, [this]() {  RES_7_D(); } });
+	CBopcodes.insert({ 0xBB, [this]() {  RES_7_E(); } });
+	CBopcodes.insert({ 0xBC, [this]() {  RES_7_H(); } });
+	CBopcodes.insert({ 0xBD, [this]() {  RES_7_L(); } });
+	CBopcodes.insert({ 0xBE, [this]() {  RES_7_aHL(); } });
+	CBopcodes.insert({ 0xBF, [this]() {  RES_7_A(); } });
+	CBopcodes.insert({ 0xC0, [this]() {  SET_0_B(); } });
+	CBopcodes.insert({ 0xC1, [this]() {  SET_0_C(); } });
+	CBopcodes.insert({ 0xC2, [this]() {  SET_0_D(); } });
+	CBopcodes.insert({ 0xC3, [this]() {  SET_0_E(); } });
+	CBopcodes.insert({ 0xC4, [this]() {  SET_0_H(); } });
+	CBopcodes.insert({ 0xC5, [this]() {  SET_0_L(); } });
+	CBopcodes.insert({ 0xC6, [this]() {  SET_0_aHL(); } });
+	CBopcodes.insert({ 0xC7, [this]() {  SET_0_A(); } });
+	CBopcodes.insert({ 0xC8, [this]() {  SET_1_B(); } });
+	CBopcodes.insert({ 0xC9, [this]() {  SET_1_C(); } });
+	CBopcodes.insert({ 0xCA, [this]() {  SET_1_D(); } });
+	CBopcodes.insert({ 0xCB, [this]() {  SET_1_E(); } });
+	CBopcodes.insert({ 0xCC, [this]() {  SET_1_H(); } });
+	CBopcodes.insert({ 0xCD, [this]() {  SET_1_L(); } });
+	CBopcodes.insert({ 0xCE, [this]() {  SET_1_aHL(); } });
+	CBopcodes.insert({ 0xCF, [this]() {  SET_1_A(); } });
+	CBopcodes.insert({ 0xD0, [this]() {  SET_2_B(); } });
+	CBopcodes.insert({ 0xD1, [this]() {  SET_2_C(); } });
+	CBopcodes.insert({ 0xD2, [this]() {  SET_2_D(); } });
+	CBopcodes.insert({ 0xD3, [this]() {  SET_2_E(); } });
+	CBopcodes.insert({ 0xD4, [this]() {  SET_2_H(); } });
+	CBopcodes.insert({ 0xD5, [this]() {  SET_2_L(); } });
+	CBopcodes.insert({ 0xD6, [this]() {  SET_2_aHL(); } });
+	CBopcodes.insert({ 0xD7, [this]() {  SET_2_A(); } });
+	CBopcodes.insert({ 0xD8, [this]() {  SET_3_B(); } });
+	CBopcodes.insert({ 0xD9, [this]() {  SET_3_C(); } });
+	CBopcodes.insert({ 0xDA, [this]() {  SET_3_D(); } });
+	CBopcodes.insert({ 0xDB, [this]() {  SET_3_E(); } });
+	CBopcodes.insert({ 0xDC, [this]() {  SET_3_H(); } });
+	CBopcodes.insert({ 0xDD, [this]() {  SET_3_L(); } });
+	CBopcodes.insert({ 0xDE, [this]() {  SET_3_aHL(); } });
+	CBopcodes.insert({ 0xDF, [this]() {  SET_3_A(); } });
+	CBopcodes.insert({ 0xE0, [this]() {  SET_4_B(); } });
+	CBopcodes.insert({ 0xE1, [this]() {  SET_4_C(); } });
+	CBopcodes.insert({ 0xE2, [this]() {  SET_4_D(); } });
+	CBopcodes.insert({ 0xE3, [this]() {  SET_4_E(); } });
+	CBopcodes.insert({ 0xE4, [this]() {  SET_4_H(); } });
+	CBopcodes.insert({ 0xE5, [this]() {  SET_4_L(); } });
+	CBopcodes.insert({ 0xE6, [this]() {  SET_4_aHL(); } });
+	CBopcodes.insert({ 0xE7, [this]() {  SET_4_A(); } });
+	CBopcodes.insert({ 0xE8, [this]() {  SET_5_B(); } });
+	CBopcodes.insert({ 0xE9, [this]() {  SET_5_C(); } });
+	CBopcodes.insert({ 0xEA, [this]() {  SET_5_D(); } });
+	CBopcodes.insert({ 0xEB, [this]() {  SET_5_E(); } });
+	CBopcodes.insert({ 0xEC, [this]() {  SET_5_H(); } });
+	CBopcodes.insert({ 0xED, [this]() {  SET_5_L(); } });
+	CBopcodes.insert({ 0xEE, [this]() {  SET_5_aHL(); } });
+	CBopcodes.insert({ 0xEF, [this]() {  SET_5_A(); } });
+	CBopcodes.insert({ 0xF0, [this]() {  SET_6_B(); } });
+	CBopcodes.insert({ 0xF1, [this]() {  SET_6_C(); } });
+	CBopcodes.insert({ 0xF2, [this]() {  SET_6_D(); } });
+	CBopcodes.insert({ 0xF3, [this]() {  SET_6_E(); } });
+	CBopcodes.insert({ 0xF4, [this]() {  SET_6_H(); } });
+	CBopcodes.insert({ 0xF5, [this]() {  SET_6_L(); } });
+	CBopcodes.insert({ 0xF6, [this]() {  SET_6_aHL(); } });
+	CBopcodes.insert({ 0xF7, [this]() {  SET_6_A(); } });
+	CBopcodes.insert({ 0xF8, [this]() {  SET_7_B(); } });
+	CBopcodes.insert({ 0xF9, [this]() {  SET_7_C(); } });
+	CBopcodes.insert({ 0xFA, [this]() {  SET_7_D(); } });
+	CBopcodes.insert({ 0xFB, [this]() {  SET_7_E(); } });
+	CBopcodes.insert({ 0xFC, [this]() {  SET_7_H(); } });
+	CBopcodes.insert({ 0xFD, [this]() {  SET_7_L(); } });
+	CBopcodes.insert({ 0xFE, [this]() {  SET_7_aHL(); } });
+	CBopcodes.insert({ 0xFF, [this]() {  SET_7_A(); } });
 
 
 }
@@ -1352,9 +1877,12 @@ void CPU::POP_HL(){
 
 
 
-/////////////////////////////////////////
-void CPU::PREFIX_CB(){}
-////////////////////////////////////////
+
+void CPU::PREFIX_CB(){
+	PC.inc();
+	CBopcodes[memory->readbyte(PC->getValue())]();
+}
+
 
 
 
@@ -1649,7 +2177,13 @@ void CPU::RETI(){
 void CPU::RL_A(){
 	RL(a);
 }
-void CPU::RL_aHL(){}
+void CPU::RL_aHL(){
+	Register* temp = new Register();
+	temp->setValue(memory->readByte(HL.getValue()));
+	RL(temp);
+	memory->writeByte(HL.getValue(), temp->getValue());
+	delete temp;
+}
 void CPU::RL_B(){
 	RL(b);
 }
@@ -1674,7 +2208,13 @@ void CPU::RLA(){
 void CPU::RLC_A(){
 	RLC(a);
 }
-void CPU::RLC_aHL(){}
+void CPU::RLC_aHL(){
+	Register* temp = new Register();
+	temp->setValue(memory->readByte(HL.getValue()));
+	RLC(temp);
+	memory->writeByte(HL.getValue(), temp->getValue());
+	delete temp;
+}
 void CPU::RLC_B(){
 	RLC(b);
 }
@@ -1695,11 +2235,20 @@ void CPU::RLC_L(){
 }
 void CPU::RLCA(){
 	RLC(a);
+	if (a->getValue == 0) {
+		CC->setZero();
+	}
 }
 void CPU::RR_A(){
 	RR(a);
 }
-void CPU::RR_aHL(){}
+void CPU::RR_aHL(){
+	Register* temp = new Register();
+	temp->setValue(memory->readByte(HL.getValue()));
+	RR(temp);
+	memory->writeByte(HL.getValue(), temp->getValue());
+	delete temp;
+}
 void CPU::RR_B(){
 	RR(b);
 }
@@ -1724,7 +2273,13 @@ void CPU::RRA(){
 void CPU::RRC_A(){
 	RRC(a);
 }
-void CPU::RRC_aHL(){}
+void CPU::RRC_aHL(){
+	Register* temp = new Register();
+	temp->setValue(memory->readByte(HL.getValue()));
+	RRC(temp);
+	memory->writeByte(HL.getValue(), temp->getValue());
+	delete temp;
+}
 void CPU::RRC_B(){
 	RRC(b);
 }

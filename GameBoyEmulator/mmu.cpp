@@ -12,6 +12,24 @@ mmu::~mmu()
 {
 }
 
+void mmu::setMBCRule(uint8_t setting)
+{
+	switch (setting) {
+	case 1:
+	case 2:
+	case 3:
+		MBC1rules = true;
+		break;
+	case 4:
+	case 5:
+	case 6:
+		MBC2rules = true;
+		break;
+	default: 
+		break;
+	}
+}
+
 uint8_t mmu::readByte(uint8_t addr)
 {
 	switch (addr & 0xF000)
@@ -91,6 +109,9 @@ uint16_t mmu::readWord(uint16_t addr)
 
 void mmu::writeByte(uint8_t addr, uint8_t value)
 {
+	if (addr < 0x8000) {
+		cout << "should not be writing to RAM..." << endl;
+	}
 	switch (addr & 0xF000)
 	{
 	case 0x0000:
