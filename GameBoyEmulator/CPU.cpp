@@ -1,6 +1,6 @@
 #include "CPU.h"
 
-using Action = std::function<void()>;
+
 
 void CPU::load(Register * tar, uint8_t value)
 {
@@ -376,9 +376,51 @@ void CPU::CALL()
 
 void CPU::execute()
 {
-	uint8_t opcode = memory->readByte(PC.getValue);
+	uint8_t opcode = memory->readByte(PC->getValue());
 	PC->inc();
 	opcodes[opcode]();
+	timer->setCycles(opcode);
+	timer->updateTimers();
+}
+
+void CPU::requestInterupt(uint8_t id)
+{
+	uint8_t requestRegister = memory->readByte(0xFF0F);
+	requestRegister |= 1 << id;
+	memory.writeByte(0xFF0F);
+}
+
+void CPU::doInterrupt(int i, uint8_t req)
+{
+	masterInterrupt = false;
+	req &= (0xFF & ~(1 << i));
+	memory->writeByte(0xFF0F, req);
+	PUSH(PC);
+
+	switch (i) {
+		case 0:  PC->setValue(0x40); break;
+		case 1:  PC->setValue(0x48); break;
+		case 2:  PC->setValue(0x50); break;
+		case 4:  PC->setValue(0x60); break;
+	}
+
+}
+
+void CPU::handleInterrupts()
+{
+	if (masterInterrupt) {
+		uint8_t requestedInterrupts = memory->readByte(0xFF0F);
+		uint8_t enabledInterrupts = memory->readByte(0xFFFF);
+		if (requestedInterrupts > 0) {
+			for (int i = 0; i < 5; i++) {
+				if ((requestedInterrupts >> i) == 1) {
+					if ((enabledInterrupts >> i) == 1) {
+						doInterrupt(i, requestedInterrupts);
+					}
+				}
+			}
+		}
+	}
 }
 
 CPU::CPU(mmu* memory, Timer* timer)
@@ -936,7 +978,7 @@ void CPU::LD_A_A(){
 }
 void CPU::LD_A_a16(){
 	a->setValue(
-		memory->readByte(memory->read2Byte(PC))
+		memory->readByte(get2Bytes())
 	);
 	PC->inc();
 	PC->inc();
@@ -1218,7 +1260,7 @@ void CPU::LD_L_L(){
 	l->setValue(l->getValue());
 }
 void CPU::LD_SP_d16(){
-	SP->setValue(memory->read2Byte(PC));
+	SP->setValue(get2Bytes());
 }
 void CPU::LD_SP_HL(){
 	SP->setValue(HL.getValue());
@@ -1879,8 +1921,9 @@ void CPU::POP_HL(){
 
 
 void CPU::PREFIX_CB(){
-	PC.inc();
-	CBopcodes[memory->readbyte(PC->getValue())]();
+	PC->inc();
+	CBopcodes[memory->readByte(PC->getValue())]();
+	timer->addCBCycles(memory->readByte(PC->getValue()));
 }
 
 

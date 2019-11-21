@@ -52,24 +52,30 @@ int main(int argc, char *argv[]) {
 		ifstream gameROM;
 		gameROM.open(argv[1], ios::in | ios::binary | ios::ate);
 		int size = gameROM.tellg();
-		char *cartridgeBlock = new char[size];
+		uint8_t *cartridgeBlock = new uint8_t[size];
 		gameROM.seekg(0, ios::beg);
-		gameROM.read(cartridgeBlock, size);
+		//gameROM.read(cartridgeBlock, size);
 
 		int cyclesThisUpdate = 0;
-
-		mmu* memory();
-		memory.setMBCRules(cartridgeBlock[0x147])
-		CPU* processor(memory);
-		Timer timer(processor);
+		
+		
+		mmu* memory = new mmu();
+		Timer* timer = new Timer(memory);
+		memory->setMBCRule(cartridgeBlock[0x147]);
+		CPU* processor = new CPU(memory, timer);
+		timer->connectCPU(processor);
+		
 
 		 
 		while (true) {
 			cyclesThisUpdate = 0;
-			if (timer.needScreenRefresh()) {
+			timer->resetCycles();
+			if (timer->needScreenRefresh()) {
 				while (cyclesThisUpdate < MAXCYCLES) {
-					//process opcodes
-					//cTU += timer.update
+					processor->execute();
+					cyclesThisUpdate += timer->mCycles;
+					//doGraphicsStuff
+					processor-> handleInterupts();
 				}					
 				//update time
 			//update screen

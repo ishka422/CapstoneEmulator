@@ -1,13 +1,19 @@
 #pragma once
 #include "cstdint";
 #include <array>
-#include<iostream> 
+#include <iostream> 
+#include "Timer.h"
+
 
 class mmu
 {
 	bool MBC1rules = false;
 	bool MBC2rules = false;
-	uint8_t currentBank = 1;
+	bool enableRAM = false;
+	bool ROMBanking = false;
+	int currentBank = 0;
+	int currRomBank = 0;
+	Timer* timer;
 
 
 	bool inBios = true;
@@ -75,7 +81,7 @@ class mmu
 	uint8_t zram[0x7f];
 
 	//$FFFF:			Interupt Enable Flag
-	bool interuptEnable {true};
+	uint8_t interuptEnable;
 
 public:
 	mmu();
@@ -92,9 +98,12 @@ public:
 	void writeByte(uint8_t addr, uint8_t value);
 	void writeWord(uint16_t addr, uint16_t value);
 
-	void enableInterupt();
-	void disableInterupt();
+	void connectTimer(Timer* timer);
+	/*void enableInterupt();
+	void disableInterupt();*/
 	bool interuptable();
+	void incDivider();
+	void incLY();
 
 };
 

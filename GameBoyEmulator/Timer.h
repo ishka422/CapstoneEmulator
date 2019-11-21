@@ -2,6 +2,7 @@
 #include "cstdint";
 #include <time.h>
 #include "CPU.h"
+#include <chrono>
 class Timer
 {
 
@@ -11,13 +12,20 @@ class Timer
 
 private:
 
-	auto now;
-	auto timeDif;
+	clock_t now;
+	
+	const uint16_t TIMA = 0xFF05;
+	const uint16_t TMA = 0xFF06;
+	const uint16_t TAC = 0xFF07;
 	int cycles;
+	int timerCycles = 0;
+	mmu* memory;
+	int divideRegister = 0;
 	CPU* cpu;
+
 	
 
-	int CBTimeCycles[256] = {    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
+	int  CBMachineCycles[256] = {    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
 							     8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
 							     8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
 							     8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
@@ -34,7 +42,7 @@ private:
 							     8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
 							     8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8
 };
-	int CBMachineCycles[256] = {
+	int CBTimeCycles[256] = {
 								2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 								2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 								2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
@@ -49,7 +57,7 @@ private:
 								2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
 	};
 
-	int machineCycles[256] = {
+	int timeCyclesmachineCycles[256] = {
 								1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 								1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 								1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
@@ -65,7 +73,7 @@ private:
 	};
 
 
-	int timeCycles[] = {      4, 12,  8,  8,  4,  4,  8,  4, 20,  8,  8,  8,  4,  4,  8,  4,
+	int machineCycles[256] = {      4, 12,  8,  8,  4,  4,  8,  4, 20,  8,  8,  8,  4,  4,  8,  4,
 							  4, 12,  8,  8,  4,  4,  8,  4, 12,  8,  8,  8,  4,  4,  8,  4,
 							  8, 12,  8,  8,  4,  4,  8,  4,  8,  8,  8,  8,  4,  4,  8,  4,
 							  8, 12,  8,  8, 12, 12, 12,  4,  8,  8,  8,  8,  4,  4,  8,  4,
@@ -88,9 +96,18 @@ public:
 	int tCycles = 0;
 	int mCycles = 0;
 
-	Timer(CPU* cpu);
+	Timer(mmu* memory);
+	void connectCPU(CPU* cpu);
+	void resetCycles();
+	void setCycles(uint8_t opcode);
+	void addCBCycles(uint8_t opcode);
 	void update();
 	bool needScreenRefresh();
+	void updateTimers();
+	void doDivideRegister();
+	bool isClockEnabled();
+	
+	
 	~Timer();
 };
 

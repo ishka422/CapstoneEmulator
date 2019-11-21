@@ -11,72 +11,55 @@ PPU::~PPU()
 {
 }
 
-void PPU::step()
+void PPU::updateGraphics()
 {
-	modeClock += timer->tCycles;
+	setLCDStatus();
+	
+	if (LCDEnabled()) {
+		lineCounter -= timer->mCycles;
+	}
+	else {
+		return;
+	}
+	if (lineCounter <= 0) {
+		memory->incLY();
+		uint8_t currentLine = memory->readByte(0xFF44);
+		lineCounter = 456;
 
-	switch (mode)
-	{
-		// OAM read mode, scanline active
-	case 2:
-		if (modeClock >= 80)
-		{
-			// Enter scanline mode 3
-			modeClock = 0;
-			mode = 3;
+		if (currentLine = 144) {
+			cpu->requestInterupt(0);
 		}
-		break;
-
-		// VRAM read mode, scanline active
-		// Treat end of mode 3 as end of scanline
-	case 3:
-		if (modeClock >= 172)
-		{
-			// Enter hblank
-			modeClock = 0;
-			mode = 0;
-
-			// Write a scanline to the framebuffer
-			renderscan();
+		else if (currentLine > 153){
+			memory->writeByte(0xFF44, 0);
 		}
-		break;
-
-		// Hblank
-		// After the last hblank, push the screen data to canvas
-	case 0:
-		if (modeClock >= 204)
-		{
-			modeClock = 0;
-			line++;
-
-			if (line == 143)
-			{
-				// Enter vblank
-				mode = 1;
-				//GPU._canvas.putImageData(GPU._scrn, 0, 0);
-			}
-			else
-			{
-				mode = 2;
-			}
+		else if (currentLine < 144) {
+			drawLine();
 		}
-		break;
+	}
+}
 
-		// Vblank (10 lines)
-	case 1:
-		if (modeClock >= 456)
-		{
-			modeClock = 0;
-			line++;
+void PPU::setLCDStatus()
+{
+	uint8_t status = memory->readByte(0xFF41);
+	if (!LCDEnabled()) {
+		lineCounter = 456;
+		memory->writeByte(0xFF44, 0);
+		status &= (~(~0U << 6) << 2);
+		status |= 1;
+		memory->writeByte(0xFF41, status);
+		return;
+	}
+	uint8_t lineNum = memory->readByte(0xFF44);
+	uint8_t currMode = status & (~(~0U << 2));
 
-			if (line > 153)
-			{
-				// Restart scanning modes
-				mode = 2;
-				line = 0;
-			}
-		}
-		break;
+	uint8_t mode = 0;
+	bool requestInterupt = false;
+
+	if (lineNum >= 144) {
+		mode = 1;
+		status |= 1;
+		status &= (~(~0U << 1) << 1);
+		requestInterupt = ((status >> 4)&1) == 1;
 	}
 
 }

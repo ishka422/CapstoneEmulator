@@ -7,12 +7,15 @@
 #include "ConditionCodes.h"
 
 using namespace std;
-
+using Action = std::function<void()>;
 
 class CPU
 {
+	bool masterInterrupt = false;
 	mmu* memory;
 	Timer* timer;
+	map <uint8_t, Action> opcodes;
+	map <uint8_t, Action> CBopcodes;
 
 	
 
@@ -73,6 +76,10 @@ public:
 	void CALL();
 
 	void execute();
+
+	void requestInterupt(uint8_t id);
+	void doInterrupt(int i, uint8_t req);
+	void handleInterrupts();
 
 
 	CPU(mmu* memory, Timer* timer);
