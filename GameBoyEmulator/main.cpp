@@ -1,8 +1,10 @@
 #include <iostream>
 #include <stdio.h>
 #include <fstream>
-#include "mmu.h"
+#include "MMU.h"
 #include "CPU.h"
+#include "PPU.h"
+#include <opencv2/core/core.hpp>
 
 using namespace std;
 
@@ -59,26 +61,25 @@ int main(int argc, char *argv[]) {
 		int cyclesThisUpdate = 0;
 		
 		
-		mmu* memory = new mmu();
-		Timer* timer = new Timer(memory);
+		MMU* memory = new MMU();
 		memory->setMBCRule(cartridgeBlock[0x147]);
-		CPU* processor = new CPU(memory, timer);
-		timer->connectCPU(processor);
+		CPU* processor = new CPU(memory);
+		PPU* ppu = new PPU(processor, memory);
 		
 
 		 
 		while (true) {
 			cyclesThisUpdate = 0;
-			timer->resetCycles();
-			if (timer->needScreenRefresh()) {
+			processor->resetCycles();
+			if (processor->needScreenRefresh()) {
 				while (cyclesThisUpdate < MAXCYCLES) {
 					processor->execute();
-					cyclesThisUpdate += timer->mCycles;
-					//doGraphicsStuff
-					processor-> handleInterupts();
+					cyclesThisUpdate += processor->mCycles;
+					ppu->updateGraphics();
+					processor->handleInterrupts();
 				}					
 				//update time
-			//update screen
+				ppu->showScreen();
 			}
 				
 		}

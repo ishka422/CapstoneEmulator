@@ -84,7 +84,12 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>D:\Users\Donald\Documents\Programming stuff\Dependencies\INSTALL\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>D:\Users\Donald\Documents\Programming stuff\Dependencies\INSTALL\x64\vc15\staticlib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -117,11 +122,13 @@
   <ItemGroup>
     <ClInclude Include="ConditionCodes.h" />
     <ClInclude Include="CPU.h" />
+    <ClInclude Include="CPUHelper.h" />
+    <ClInclude Include="timings.h" />
     <ClInclude Include="mmu.h" />
+    <ClInclude Include="Opcodes.cpp" />
     <ClInclude Include="PPU.h" />
     <ClInclude Include="Register.h" />
     <ClInclude Include="Register16.h" />
-    <ClInclude Include="Timer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConditionCodes.cpp" />
@@ -131,7 +138,6 @@
     <ClCompile Include="Register.cpp" />
     <ClCompile Include="Register16.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="Timer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

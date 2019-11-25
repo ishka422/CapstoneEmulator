@@ -11,6 +11,11 @@ void Register::decrement()
 	value--;
 }
 
+Register::~Register()
+{
+	delete &value;
+}
+
 void Register::setValue(uint8_t val)
 {
 	value = val;

@@ -1,42 +1,78 @@
-#include "mmu.h"
-#include "Timer.h"
+#ifndef CPU_H
+#define CPU_H
+
+#include "MMU.h"
 #include "cstdint";
 #include <functional>
 #include <map>
 #include "Register16.h"
 #include "ConditionCodes.h"
+#include "time.h"
+#include <chrono>
+
+#define TIMA 0xFF05
+#define TMA  0xFF06
+#define TAC  0xFF07
 
 using namespace std;
 using Action = std::function<void()>;
 
 class CPU
 {
-	bool masterInterrupt = false;
-	mmu* memory;
-	Timer* timer;
+
+	clock_t now;
+
+	bool halted;
+	int cycles;
+	int timerCycles;
+	int divideRegister;
+
+	int  CBMachineCycles[256];
+	int CBTimeCycles[256];
+
+	int timeCyclesmachineCycles[256];
+
+
+	int machineCycles[256];
+
+	bool masterInterrupt;
+	MMU* memory;
 	map <uint8_t, Action> opcodes;
 	map <uint8_t, Action> CBopcodes;
-
 	
 
 public:
 
-	Register* a = new Register();
-	Register* b = new Register();
-	Register* c = new Register();
-	Register* d = new Register();
-	Register* e = new Register();
-	Register* h = new Register();
-	Register* l = new Register();
+
+	int *tCycles;
+	int mCycles;
+
+	void resetCycles();
+	void setCycles(uint8_t opcode);
+	void addCBCycles(uint8_t opcode);
+	void update();
+	bool needScreenRefresh();
+	void updateTimers();
+	void doDivideRegister();
+	bool isClockEnabled();
+	void setClock();
+
+	Register* a;
+	Register* b;
+	Register* c;
+	Register* d;
+	Register* e;
+	Register* h;
+	Register* l;
 
 
 	Register16 AF;
 	Register16 BC;
 	Register16 DE;
 	Register16 HL;
-	Register16* SP = new Register16();
-	Register16* PC = new Register16();
-	ConditionCodes* CC = new ConditionCodes();
+	Register16* SP;
+	Register16* PC;
+	ConditionCodes* CC;
 
 	void process();
 
@@ -82,11 +118,13 @@ public:
 	void handleInterrupts();
 
 
-	CPU(mmu* memory, Timer* timer);
+	CPU(MMU* memory);
 	~CPU();
 
 
-private:
+
+
+	
 	uint16_t get2Bytes();
 
 	/////////////////////////////////////
@@ -348,7 +386,7 @@ private:
 	//E0
 	void LDH_a8_A();
 	void POP_HL();
-	void LD_C_A();
+	void LD_Ca_A();
 	void RES_E3();
 	void RES_E4();
 	void PUSH_HL();
@@ -675,7 +713,9 @@ private:
 	void SET_7_L();
 	void SET_7_aHL();
 	void SET_7_A();
-
+	
 
 };
 
+#include "CPUHelper.h"
+#endif

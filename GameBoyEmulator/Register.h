@@ -4,7 +4,7 @@ class Register
 {
 public:
 
-	void increment();
+
 	void setValue(uint8_t val);
 	uint8_t getValue();
 	void increment();
