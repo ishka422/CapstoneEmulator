@@ -4,6 +4,8 @@
 
 Register16::Register16()
 {
+	high = new Register();
+	low = new Register();
 	high->setValue(0);
 	low->setValue(0);
 }
@@ -26,6 +28,16 @@ uint8_t Register16::getLow()
 uint8_t Register16::getHigh()
 {
 	return high->getValue();
+}
+
+void Register16::setHighRegister(Register * reg)
+{
+	high = reg;
+}
+
+void Register16::setLowRegister(Register * reg)
+{
+	low = reg;
 }
 
 Register* Register16::getHighReg()

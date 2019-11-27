@@ -1,8 +1,9 @@
-#ifndef CPU_H
-#define CPU_H
+#pragma once
 
 #include "MMU.h"
-#include "cstdint";
+#include "cstdint"
+#include <iostream>
+#include <stdio.h>
 #include <functional>
 #include <map>
 #include "Register16.h"
@@ -718,4 +719,3 @@ public:
 };
 
 #include "CPUHelper.h"
-#endif

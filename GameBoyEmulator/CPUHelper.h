@@ -18,7 +18,7 @@ inline void CPU::ADD(uint8_t val)
 	if ((result >> 8) != 0) {
 		CC->setCarry();
 	}
-	if (((a->getValue() & 0x0F) + (val & 0x0F)) & 0x10 != 0)
+	if ((((a->getValue() & 0x0F) + (val & 0x0F)) & 0x10) != 0)
 	{
 		CC->setHalfCarry();
 	}
@@ -208,7 +208,7 @@ inline void CPU::XOR(Register * reg)
 
 inline void CPU::BIT(uint8_t val, int bit)
 {
-	if ((val >> bit) & 0x01) {
+	if (((val >> bit) & 0x01) ==0) {
 		CC->setZero();
 	}
 	else {

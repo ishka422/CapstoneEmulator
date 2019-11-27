@@ -1,19 +1,19 @@
 #pragma once
-#include "cstdint";
+#include "cstdint"
 class Register
 {
 public:
 
-
+	uint8_t value;
 	void setValue(uint8_t val);
 	uint8_t getValue();
 	void increment();
 	void decrement();
 
-	Register() : value(0) {};
+	Register();
 	~Register();
 
 private:
-	uint8_t value;
+	
 };
 

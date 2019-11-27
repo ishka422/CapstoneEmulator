@@ -11,6 +11,11 @@ void Register::decrement()
 	value--;
 }
 
+Register::Register()
+{
+	value = 0;
+}
+
 Register::~Register()
 {
 	delete &value;

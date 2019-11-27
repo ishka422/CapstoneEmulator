@@ -64,7 +64,7 @@ void MMU::setMBCRule(uint8_t setting)
 	}
 }
 
-uint8_t MMU::readByte(uint8_t addr)
+uint8_t MMU::readByte(uint16_t addr)
 {
 	switch (addr & 0xF000)
 	{
@@ -138,10 +138,11 @@ uint8_t MMU::readByte(uint8_t addr)
 
 uint16_t MMU::readWord(uint16_t addr)
 {
-	return readByte(addr) + (readByte(addr + 1) << 8);
+	std::cout << (unsigned int)addr << "addr" << std::endl;
+	return ((readByte(addr + 1)) << 8) + readByte(addr);
 }
 
-void MMU::writeByte(uint8_t addr, uint8_t value)
+void MMU::writeByte(uint16_t addr, uint8_t value)
 {
 	switch (addr & 0xF000)
 	{

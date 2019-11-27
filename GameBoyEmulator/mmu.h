@@ -3,7 +3,7 @@
 
 
 #pragma once
-#include "cstdint";
+#include "cstdint"
 #include <array>
 #include <iostream> 
 #include "timings.h"
@@ -78,13 +78,13 @@ public:
 	void setTCycles(int* tCycles);
 	void setMBCRule(uint8_t setting);
 
-	uint8_t readByte(uint8_t addr);
+	uint8_t readByte(uint16_t addr);
 	uint16_t readWord(uint16_t addr);
 
 	//for reading the next 2 bytes from memory, will mostly(entrirly?) use the PC for the pointer
 	//uint16_t read2Byte(Register16* PC);
 
-	void writeByte(uint8_t addr, uint8_t value);
+	void writeByte(uint16_t addr, uint8_t value);
 	void writeWord(uint16_t addr, uint16_t value);
 
 	/*void connectTimer(Timer* timer);*/

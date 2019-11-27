@@ -49,25 +49,27 @@ long getFileSize(FILE *file)
 
 
 int main(int argc, char *argv[]) {
-
 	if (argc > 1) {
 		ifstream gameROM;
 		gameROM.open(argv[1], ios::in | ios::binary | ios::ate);
 		int size = gameROM.tellg();
-		uint8_t *cartridgeBlock = new uint8_t[size];
+
+		uint8_t *cartridgeBlock = new uint8_t[0x20000];
 		gameROM.seekg(0, ios::beg);
 		//gameROM.read(cartridgeBlock, size);
 
 		int cyclesThisUpdate = 0;
 		
-		
 		MMU* memory = new MMU();
+		uint8_t aa = 8;
 		memory->setMBCRule(cartridgeBlock[0x147]);
+		cout << cartridgeBlock[0x147] << endl;
 		CPU* processor = new CPU(memory);
+		cout << "bap." << endl;
 		PPU* ppu = new PPU(processor, memory);
-		
 
-		 
+
+		cout << "bap" << endl; 
 		while (true) {
 			cyclesThisUpdate = 0;
 			processor->resetCycles();
