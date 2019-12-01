@@ -5,15 +5,17 @@
 
 CPU::CPU(MMU* memory)
 {
-	cout << "bappppp";
 	halted = false;
 	int temp = 0;
 	tCycles = &temp;
 	mCycles = 0; 
+	cycles = 0;
+	uint8_t temp2 = 0;
+	opcode = &temp2;
+	
 
 	timerCycles = 0;
 	divideRegister = 0;
-	cout << "bap" << endl;
 	a = new Register();
 	b = new Register();
 	c = new Register();
@@ -24,16 +26,22 @@ CPU::CPU(MMU* memory)
 	SP = new Register16();
 	PC = new Register16();
 	CC = new ConditionCodes();
+	f = CC->getF();
+	AF.setHighRegister(a);
+	AF.setLowRegister(CC->getF());
 	BC.setHighRegister(b);
 	BC.setLowRegister(c);
 	DE.setHighRegister(d);
-	DE.setHighRegister(e);
+	DE.setLowRegister(e);
 	HL.setHighRegister(h);
-	HL.setHighRegister(l);
+	HL.setLowRegister(l);
+	memset(calledOpcodes, false, sizeof(calledOpcodes));
+	memset(CBCalledOpcodes, false, sizeof(CBCalledOpcodes));
 
 	
 	this->memory = memory;
 	memory->setTCycles(tCycles);
+	memory->setOpcode(opcode);
 	now = clock();
 
 	opcodes.insert({ 0x00, [this]() { NOP(); } });
@@ -557,18 +565,23 @@ CPU::CPU(MMU* memory)
 
 void CPU::execute()
 {
-	uint8_t opcode = memory->readByte(PC->getValue());
-	//cout << (int)opcode << endl;
+	if (PC->getValue() == 0xeb) {
+		cout << "bap" << endl;
+	}
+	*opcode = memory->readByte(PC->getValue());
+	//cout << std::hex<< (int)opcode << "  0x" << std::hex << PC->getValue()<< endl;
 	PC->inc();
-	opcodes[opcode]();
-	setCycles(opcode);
+	calledOpcodes[*opcode] = true;
+	opcodes[*opcode]();
+	setCycles(*opcode);
 	updateTimers();
+
 }
 
 void CPU::requestInterupt(uint8_t id)
 {
 	uint8_t requestRegister = memory->readByte(0xFF0F);
-	requestRegister |= 1 << id;
+	requestRegister |= (1 << id);
 	memory->writeByte(0xFF0F, id);
 }
 
@@ -594,9 +607,7 @@ void CPU::handleInterrupts()
 	//cout << "handeling interrupts" << endl;
 	if (masterInterrupt) {
 		uint8_t requestedInterrupts = memory->readByte(0xFF0F);
-		cout << (int)requestedInterrupts << " ri" << endl;
 		uint8_t enabledInterrupts = memory->readByte(0xFFFF);
-		cout << (int)enabledInterrupts << " ri" << endl;
 		if (requestedInterrupts > 0) {
 			for (int i = 0; i < 5; i++) {
 				if ((requestedInterrupts >> i) == 1) {
@@ -639,11 +650,13 @@ void CPU::resetCycles()
 void CPU::setCycles(uint8_t opcode)
 {
 	mCycles += machineCycles[opcode];
+	cycles = machineCycles[opcode];
 }
 
 void CPU::addCBCycles(uint8_t opcode)
 {
 	mCycles += CBMachineCycles[opcode];
+	cycles = CBMachineCycles[opcode];
 }
 
 void CPU::update()
@@ -657,7 +670,6 @@ bool CPU::needScreenRefresh()
 	
 	clock_t diffTime = clock();
 	double elapsed = (double)(diffTime - now) * 1000000.0 / CLOCKS_PER_SEC;
-	return true;
 	if (elapsed > 1667.0) {
 		now = clock();
 		return true;
@@ -1605,17 +1617,15 @@ void CPU::RL_L() {
 
 void CPU::LA_A_C() {
 
-	a->setValue(c->getValue());
+	a->setValue(memory->readByte(0xFF00 + c->getValue()));
 }
 void CPU::LD_A_A() {
 	a->setValue(a->getValue());
 }
 void CPU::LD_A_a16() {
 	a->setValue(
-		memory->readByte(PC->getValue())
+		memory->readByte(get2Bytes())
 	);
-	PC->inc();
-	PC->inc();
 }
 void CPU::LD_A_aBC() {
 	a->setValue(memory->readByte(BC.getValue()));
@@ -1654,8 +1664,10 @@ void CPU::LD_a16_A() {
 	memory->writeByte(get2Bytes(), a->getValue());
 }
 void CPU::LD_a16_SP() {
-	memory->writeByte(get2Bytes(), SP->getValue());
-
+	memory->writeByte(PC->getValue(), SP->getLowReg()->getValue());
+	PC->inc();
+	memory->writeByte(PC->getValue(), SP->getHighReg()->getValue());
+	PC->inc();
 }
 void CPU::LD_aBC_A() {
 	memory->writeByte(BC.getValue(), a->getValue());
@@ -1718,6 +1730,9 @@ void CPU::LD_B_L() {
 }
 void CPU::LD_BC_d16() {
 	BC.setValue(memory->readWord(PC->getValue()));
+	cout << std::hex << BC.getValue() << "    "<< PC->getValue()<<endl;
+	PC->inc();
+	PC->inc();
 }
 void CPU::LD_C_A() {
 	c->setValue(a->getValue());
@@ -1839,7 +1854,6 @@ void CPU::LD_H_L() {
 }
 void CPU::LD_HL_d16() {
 	HL.setValue(memory->readWord(PC->getValue()));
-	cout << HL.getValue() << endl;
 	PC->inc();
 	PC->inc();	
 }
@@ -1861,7 +1875,6 @@ void CPU::LD_HLhi_A() {
 	HL.inc();
 }
 void CPU::LD_HLlo_A() {
-	
 	memory->writeByte(HL.getValue(), a->getValue());
 	HL.dec();
 }
@@ -1952,6 +1965,7 @@ void CPU::ADD_A_D() {
 }
 void CPU::ADD_A_d8() {
 	ADD(memory->readByte(PC->getValue()));
+	PC->inc();
 }
 void CPU::ADD_A_E() {
 	ADD(e->getValue());
@@ -2076,6 +2090,9 @@ void CPU::CP_A() {
 	CP(a->getValue());
 }
 void CPU::CP_aHL() {
+	if (a->getValue() == 0xa8 && HL.getValue() == 0x0104) {
+		cout << "a: " << std::hex << memory->readByte(a->getValue()) << "  HL: "<< std::hex << memory->readByte(HL.getValue()) << endl;
+	}
 	CP(memory->readByte(HL.getValue()));
 }
 void CPU::CP_B() {
@@ -2088,6 +2105,7 @@ void CPU::CP_D() {
 	CP(d->getValue());
 }
 void CPU::CP_d8() {
+	//cout << std::hex << (int)a->getValue() << endl;
 	CP(memory->readByte(PC->getValue()));
 	PC->inc();
 }
@@ -2142,7 +2160,7 @@ void CPU::DEC_aHL() {
 	temp->setValue(memory->readByte(HL.getValue()));
 	DEC8b(temp);
 	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	//delete temp;
 }
 void CPU::DEC_B() {
 	DEC8b(b);
@@ -2298,7 +2316,6 @@ void CPU::JR_NZ_r8() {
 		//branch = true
 	}
 	else {
-		cout << "false" << endl;
 		PC->inc();
 	}
 }
@@ -2358,7 +2375,7 @@ void CPU::POP_HL() {
 
 void CPU::LD_Ca_A()
 {
-	a->setValue(memory->readByte(0xFF00 + c->getValue()));
+	memory -> writeByte(0xFF00 + c->getValue(), a->getValue());
 }
 
 
@@ -2367,7 +2384,7 @@ void CPU::LD_Ca_A()
 void CPU::PREFIX_CB() {
 
 	CBopcodes[memory->readByte(PC->getValue())]();
-	
+	CBCalledOpcodes[memory->readByte(PC->getValue())] = true;
 	addCBCycles(memory->readByte(PC->getValue()));
 	PC->inc();
 }
@@ -2577,9 +2594,10 @@ void CPU::XOR_D() {
 void CPU::XOR_d8() {
 	Register* temp = new Register();
 	temp->setValue(memory->readByte(PC->getValue()));
-	SRL(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
+	XOR(temp);
+	memory->writeByte(PC->getValue(), temp->getValue());
 	delete temp;
+	PC->inc();
 }
 void CPU::XOR_E() {
 	XOR(e);

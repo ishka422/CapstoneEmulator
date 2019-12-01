@@ -1,5 +1,6 @@
 #pragma once
 #include "PPU.h"
+#include <bitset>
 
 
 
@@ -7,7 +8,12 @@ PPU::PPU(CPU* cpu, MMU* memory)
 {
 	this->cpu = cpu;
 	this->memory = memory;
-	screen.create(SCREEN_HEIGHT, SCREEN_WIDTH, CV_8UC1);
+	lcdControl = 0;
+	Mat temp(SCREEN_WIDTH, SCREEN_HEIGHT, CV_8UC1);
+	temp = Scalar::all(255);
+	//screen.create(SCREEN_HEIGHT, SCREEN_WIDTH, CV_8UC1);
+	temp.copyTo(screen);
+	
 }
 
 
@@ -17,13 +23,11 @@ PPU::~PPU()
 
 void PPU::updateGraphics()
 {
-	
-	
 	lcdControl = memory->readByte(0xFF40);
 	setLCDStatus();
 	
 	if (LCDEnabled()) {
-		lineCounter -= cpu->mCycles;
+		lineCounter -= cpu->cycles;
 	}
 	else {
 		return;
@@ -33,7 +37,7 @@ void PPU::updateGraphics()
 		uint8_t currentLine = memory->readByte(0xFF44);
 		lineCounter = 456;
 
-		if (currentLine = 144) {
+		if (currentLine == 144) {
 			cpu->requestInterupt(0);
 		}
 		else if (currentLine > 153){
@@ -47,96 +51,107 @@ void PPU::updateGraphics()
 
 void PPU::doTiles()
 {
-	unsigned short tileData = 0;
-	unsigned short backgroundMemory = 0;
-	bool sign = false;
+	lcdControl = memory->readByte(0xFF40);
+	if ((lcdControl & 1) == 1) {
 
-	uint8_t scrollY = memory->readByte(0xFF42);
-	uint8_t scrollX = memory->readByte(0xFF43);
-	uint8_t windowX = memory->readByte(0xFF4A);
-	uint8_t windowY = memory->readByte(0xFF4B) - 7;
+		unsigned short tileData = 0;
+		unsigned short backgroundMemory = 0;
+		bool sign = false;
 
-	bool windowEnable = false;
-	//bit 5 dictates weather the game is using a window
-	if (((lcdControl >> 5) & 1) == 1) {
-		windowEnable = (windowY <= memory->readByte(0xFF44));
-	}
-	//which memory location is the tile located in?
-	if (((lcdControl >> 4) & 1) == 1) {
-		tileData = 0x8000;
-	}
-	else {
-		tileData = 0x8800;
-		sign = true;
-	}
+		uint8_t scrollY = memory->readByte(0xFF42);
+		uint8_t scrollX = memory->readByte(0xFF43);
+		uint8_t windowX = memory->readByte(0xFF4A);
+		uint8_t windowY = memory->readByte(0xFF4B) - 7;
 
-	if (!windowEnable) {
-		
-		if (((lcdControl >> 3) & 1) == 1) {
-			backgroundMemory = 0x9C00;
+		bool windowEnable = false;
+		//bit 5 dictates whether the game is using a window
+		if (((lcdControl >> 5) & 1) == 1) {
+			windowEnable = (windowY <= memory->readByte(0xFF44));
+		}
+		//which memory location is the tile located in?
+		//cout << std::bitset<8>(lcdControl) << endl;
+		if (((lcdControl >> 4) & 1) == 1) {
+			tileData = 0x8000;
 		}
 		else {
-			backgroundMemory = 0x9800;
+			tileData = 0x8800;
+			sign = true;
 		}
-	}
-	uint8_t ypos = 0;
-	
-	if (!windowEnable) {
-		ypos = scrollY + memory->readByte(0xFF44);
-	}
-	else {
-		ypos = memory->readByte(0xFF44) - windowY;
-	}
-	unsigned short tileRow = (((uint8_t)(ypos / 8)) * 32);
 
-	for (int i = 0; i < 160; i++){
-		uint8_t xpos = i + scrollX;
-		if (windowEnable) {
-			if (i >= windowX) {
-				xpos = i - windowX;
+		if (!windowEnable) {
+
+			if (((lcdControl >> 3) & 1) == 1) {
+				backgroundMemory = 0x9C00;
+			}
+			else {
+				backgroundMemory = 0x9800;
 			}
 		}
-		unsigned short tileCol = (xpos / 8);
-		signed short tileNum;
+		else {
+			if (((lcdControl >> 6) & 1) == 1)
+				backgroundMemory = 0x9C00;
+			else
+				backgroundMemory = 0x9800;
+		}
+		uint8_t ypos = 0;
 
-		unsigned short tileAddress = backgroundMemory + tileRow + tileCol;
-
-		if (!sign) {
-			tileNum = memory->readByte(tileAddress);
+		if (!windowEnable) {
+			ypos = scrollY + memory->readByte(0xFF44);
 		}
 		else {
-			tileNum = (char)memory->readByte(tileAddress);
+			ypos = memory->readByte(0xFF44) - windowY;
 		}
+		unsigned short tileRow = (((uint8_t)(ypos / 8)) * 32);
 
-		short tileLocation = tileData;
+		for (int pixel = 0; pixel < 160; pixel++) {
+			uint8_t xpos = pixel + scrollX;
+			if (windowEnable) {
+				if (pixel >= windowX) {
+					xpos = pixel - windowX;
+				}
+			}
+			else {
+				//cout << "no" << endl;
+			}
+			unsigned short tileCol = (xpos / 8);
+			signed short tileNum;
+			unsigned short tileAddress = backgroundMemory + tileRow + tileCol;
+			if (!sign) {
+				tileNum = memory->readByte(tileAddress);
+			}
+			else {
+				tileNum = (char)memory->readByte(tileAddress);
+			}
 
-		if (sign) {
-			tileLocation += ((tileNum + 128) * 16);
+			short tileLocation = tileData;
+			if (sign) {
+				tileLocation += ((tileNum + 128) * 16);
+			}
+			else {
+				tileLocation += tileNum * 16;
+			}
+			uint8_t line = ypos % 8;
+			line *= 2;
+			uint8_t data1 = memory->readByte(tileLocation + line);
+			uint8_t data2 = memory->readByte(tileLocation + line + 1);
+
+			int intensityBit = xpos % 8;
+			intensityBit -= 7;
+			intensityBit *= -1;
+
+			int intensity = (data2 >> intensityBit) & 1;
+			intensity <<= 1;
+			intensity |= (data1 >> intensityBit) & 1;
+
+			uchar col = getPallet(0xFF47, intensity);
+
+			int finally = memory->readByte(0xFF44);
+			if ((finally < 0) || (finally > 143) || (pixel < 0) || (pixel > 159)) {
+				continue;
+			}
+			screen.at<uchar>(finally, pixel) = saturate_cast<uchar>(col);
+
 		}
-		else {
-			tileLocation += tileNum * 16;
-		}
-		uint8_t line = ypos % 8;
-		line *= 2;
-		uint8_t data1 = memory->readByte(tileLocation + line);
-		uint8_t data2 = memory->readByte(tileLocation + line+1);
-		int intensityBit = xpos % 8;
-		intensityBit -= 7;
-		intensityBit *= -1;
-
-		int intensity = (data2 >> intensityBit) & 1;
-		intensity <<= 1;
-		intensity |= (data1 >> intensityBit) & 1;
-
-		
-		uchar pixel = getPallet(0xFF47, intensity);
-		
-		int x = memory->readByte(0xFF44);
-		if ((x < 0) || (x > 143) || (i < 0) || (i > 159)) {
-			continue;
-		}
-		screen.at<uchar>(i, x) = pixel;
-
 	}
 
 }
@@ -159,8 +174,8 @@ uchar PPU::getPallet(uint16_t address, int intensity) {
 
 void PPU::doSprites()
 {
-	
-	bool use8x16 = (lcdControl >> 2) & 1 == 1;
+	lcdControl = memory->readByte(0xFF40);
+	bool use8x16 = ((lcdControl >> 2) & 1) == 1;
 	
 
 	for (int sprite = 0; sprite < 40; sprite++)
@@ -172,8 +187,8 @@ void PPU::doSprites()
 		uint8_t tileLocation = memory->readByte(0xFE00 + index + 2);
 		uint8_t attributes = memory->readByte(0xFE00 + index + 3);
 
-		bool yFlip = (attributes >> 6)&1 == 1;
-		bool xFlip = (attributes >> 5) & 1 == 1;
+		bool yFlip = ((attributes >> 6)&1 ) == 1;
+		bool xFlip = ((attributes >> 5) & 1) == 1;
 
 		int scanline = memory->readByte(0xFF44);
 
@@ -231,7 +246,7 @@ void PPU::doSprites()
 				{
 					continue;
 				}
-				screen.at<uchar>(scanline, pixel) = value;
+				screen.at<uchar>(pixel, scanline) = value;
 				
 			}
 		}
@@ -243,6 +258,7 @@ void PPU::setLCDStatus()
 {
 	uint8_t status = memory->readByte(0xFF41);
 	if (!LCDEnabled()) {
+
 		lineCounter = 456;
 		memory->writeByte(0xFF44, 0);
 		status &= (~(~0U << 6) << 2);
@@ -289,7 +305,7 @@ void PPU::setLCDStatus()
 		}
 		if (memory->readByte(0xFF44) == memory->readByte(0xFF45)) {
 			status |= (1 << 2);
-			if ((status >> 6) & 1 == 1) {
+			if (((status >> 6) & 1 )== 1) {
 				cpu->requestInterupt(1);
 			}
 			else {
@@ -310,15 +326,15 @@ bool PPU::LCDEnabled()
 void PPU::drawLine()
 {
 	uint8_t control = memory->readByte(0xFF40);
-	if (control & 1 == 1) {
+	if ((control & 1 )== 1) {
 		doTiles();
 	}
-	if ((control >> 1) & 1 == 1) {
+	if (((control >> 1) & 1) == 1) {
 		doSprites();
 	}
 }
 
-void PPU::showScreen()
+Mat PPU::showScreen()
 {
-	imshow("GBE", screen);
+	return screen;
 }

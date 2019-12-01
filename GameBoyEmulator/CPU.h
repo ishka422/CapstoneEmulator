@@ -10,6 +10,7 @@
 #include "ConditionCodes.h"
 #include "time.h"
 #include <chrono>
+#include "timings.h"
 
 #define TIMA 0xFF05
 #define TMA  0xFF06
@@ -24,19 +25,20 @@ class CPU
 	clock_t now;
 
 	bool halted;
-	int cycles;
 	int timerCycles;
 	int divideRegister;
+	uint8_t* opcode;
 
-	int  CBMachineCycles[256];
-	int CBTimeCycles[256];
+	//int  CBMachineCycles[256];
+	//int CBTimeCycles[256];
 
-	int timeCyclesmachineCycles[256];
+	//int timeCycles[256];
 
 
-	int machineCycles[256];
+	//int machineCycles[256];
 
 	bool masterInterrupt;
+	
 	MMU* memory;
 	map <uint8_t, Action> opcodes;
 	map <uint8_t, Action> CBopcodes;
@@ -44,9 +46,11 @@ class CPU
 
 public:
 
-
+	bool calledOpcodes[0xFF];
+	bool CBCalledOpcodes[0xFF];
 	int *tCycles;
 	int mCycles;
+	int cycles;
 
 	void resetCycles();
 	void setCycles(uint8_t opcode);
@@ -59,6 +63,7 @@ public:
 	void setClock();
 
 	Register* a;
+	Register* f;
 	Register* b;
 	Register* c;
 	Register* d;

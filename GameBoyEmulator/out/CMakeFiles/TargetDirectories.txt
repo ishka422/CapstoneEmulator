@@ -1,0 +1,4 @@
+C:/Users/dspri/source/repos/ishka422/CapstoneEmulator/GameBoyEmulator/out/CMakeFiles/INSTALL.dir
+C:/Users/dspri/source/repos/ishka422/CapstoneEmulator/GameBoyEmulator/out/CMakeFiles/GameBoyEmulator.dir
+C:/Users/dspri/source/repos/ishka422/CapstoneEmulator/GameBoyEmulator/out/CMakeFiles/ALL_BUILD.dir
+C:/Users/dspri/source/repos/ishka422/CapstoneEmulator/GameBoyEmulator/out/CMakeFiles/ZERO_CHECK.dir

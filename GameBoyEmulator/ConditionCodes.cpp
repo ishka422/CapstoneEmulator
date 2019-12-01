@@ -1,5 +1,6 @@
 #include "ConditionCodes.h"
-
+#include <iostream>
+#include <bitset>
 
 
 ConditionCodes::ConditionCodes()
@@ -33,8 +34,9 @@ void ConditionCodes::setSub()
 
 void ConditionCodes::setZero()
 {
-
-	F->setValue(F->getValue() | 1 << 4);
+	uint8_t val = F->getValue();
+	val |= (1 << 4);
+	F->setValue(val);
 	
 }
 
@@ -45,37 +47,38 @@ bool ConditionCodes::getCarry()
 
 bool ConditionCodes::getHalfCarry()
 {
-	return ((F->getValue() & (1<<6)) >> 6) == 1;
+	return ((F->getValue() >> 6) & 1) == 1;
 }
 
 bool ConditionCodes::getSub()
 {
-	return ((F->getValue() & (1 << 5)) >> 5) == 1;
+	return ((F->getValue() >> 5) & 1) == 1;
 }
 
 bool ConditionCodes::getZero()
 {
-	return ((F->getValue() & (1 << 4)) >> 4) == 1;
+	//std::cout << std::bitset<8>(F->getValue()) << std::endl;
+	return ((F->getValue() >>4) &1) == 1;
 }
 
 void ConditionCodes::clearCarry()
 {
-	F->setValue(F->getValue() & (0 << 7));
+	F->setValue(F->getValue() & ~(1 << 7));
 }
 
 void ConditionCodes::clearHalfCarry()
 {
-	F->setValue(F->getValue() & (0 << 6));
+	F->setValue(F->getValue() & ~(1 << 6));
 }
 
 void ConditionCodes::clearSub()
 {
-	F->setValue(F->getValue() & (0 << 5));
+	F->setValue(F->getValue() & ~(1 << 5));
 }
 
 void ConditionCodes::clearZero()
 {
-	F->setValue(F->getValue() & (0 << 4));
+	F->setValue(F->getValue() & ~(1 << 4));
 }
 
 void ConditionCodes::clearFlags() {

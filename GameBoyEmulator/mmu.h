@@ -7,6 +7,8 @@
 #include <array>
 #include <iostream> 
 #include "timings.h"
+#include <bitset>
+
 
 
 class MMU
@@ -18,10 +20,11 @@ class MMU
 	int currentBank;
 	int currRomBank;
 	int* tCycles;
+	uint8_t* opcode;
 
 
 	bool inBios;
-
+public:
 	static uint8_t bios[0x100];
 	
 
@@ -71,10 +74,10 @@ class MMU
 	//$FFFF:			Interupt Enable Flag
 	uint8_t interuptEnable;
 
-public:
-	MMU();
-	~MMU();
 
+	MMU(uint8_t* block);
+	~MMU();
+	void setOpcode(uint8_t* ptr);
 	void setTCycles(int* tCycles);
 	void setMBCRule(uint8_t setting);
 

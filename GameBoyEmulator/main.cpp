@@ -50,41 +50,57 @@ long getFileSize(FILE *file)
 
 int main(int argc, char *argv[]) {
 	if (argc > 1) {
+		Mat screen;
+		/*screen.create(160, 144, CV_8UC1);*/
+
 		ifstream gameROM;
 		gameROM.open(argv[1], ios::in | ios::binary | ios::ate);
 		int size = gameROM.tellg();
 
 		uint8_t *cartridgeBlock = new uint8_t[0x20000];
 		gameROM.seekg(0, ios::beg);
-		//gameROM.read(cartridgeBlock, size);
+		gameROM.read((char*)cartridgeBlock, size);
 
 		int cyclesThisUpdate = 0;
 		
-		MMU* memory = new MMU();
-		uint8_t aa = 8;
+		MMU* memory = new MMU(cartridgeBlock);
 		memory->setMBCRule(cartridgeBlock[0x147]);
-		cout << cartridgeBlock[0x147] << endl;
 		CPU* processor = new CPU(memory);
-		cout << "bap." << endl;
 		PPU* ppu = new PPU(processor, memory);
 
-
-		cout << "bap" << endl; 
-		while (true) {
+		int key = -1;
+		while (key == -1) {
 			cyclesThisUpdate = 0;
 			processor->resetCycles();
 			if (processor->needScreenRefresh()) {
 				while (cyclesThisUpdate < MAXCYCLES) {
 					processor->execute();
-					cyclesThisUpdate += processor->mCycles;
+					cyclesThisUpdate += processor->cycles;
 					ppu->updateGraphics();
 					processor->handleInterrupts();
-				}					
-				//update time
-				ppu->showScreen();
+					
+					//cout << std::hex<< (int)processor->PC->getValue() << endl;
+				}
+
+				ppu->showScreen().copyTo(screen);
+				imshow("GBE", screen);
+				key = waitKey(1);
 			}
 				
 		}
+		cout << "called standard opcodes" << endl;
+		for (size_t i = 0; i < 0xFF; i++)
+		{
+			if (processor->calledOpcodes[i])
+				cout << std::hex << i << endl;
+		}
+		cout << "called CB opcodes" << endl;
+		for (size_t i = 0; i < 0xFF; i++)
+		{
+			if (processor->CBCalledOpcodes[i])
+				cout << std::hex << i << endl;
+		}
+
 		
 		//char contents[static_cast<size_t>(end - start)];
 

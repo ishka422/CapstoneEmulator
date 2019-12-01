@@ -36,7 +36,7 @@ public:
 	void setLCDStatus();
 	bool LCDEnabled();
 	void drawLine();
-	void showScreen();
+	Mat showScreen();
 
 
 private:

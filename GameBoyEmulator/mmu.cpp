@@ -22,8 +22,10 @@ uint8_t MMU::bios[0x100] = {
 
 
 
-MMU::MMU()
+MMU::MMU(uint8_t* block)
 {
+	uint8_t temp2 = 0;
+	opcode = &temp2;
 	MBC1rules = false;
 	MBC2rules = false;
 	enableRAM = false;
@@ -34,11 +36,37 @@ MMU::MMU()
 	tCycles = &temp;
 	interuptEnable = true;
 	inBios = true;
+	memset(rom, 0, sizeof(rom));
+	memset(romBank, 0, sizeof(romBank));
+	memset(CRAM, 0, sizeof(CRAM));
+	memset(BGMap1, 0, sizeof(BGMap1));
+	memset(BGMap2, 0, sizeof(BGMap2));
+	memset(cartridgeRAM, 0, sizeof(cartridgeRAM));
+	memset(ROMBank, 0, sizeof(ROMBank));
+	memset(GBCBank, 0, sizeof(GBCBank));
+	memset(echo, 0, sizeof(echo));
+	memset(oam, 0, sizeof(oam));
+	memset(io, 0, sizeof(io));
+	memset(zram, 0, sizeof(zram));
+	for (int i = 0; i < 0x39FF; i++)
+	{
+		rom[i] = block[i];
+	}
+	for (size_t i = 0x4000; i < 0x12000; i++)
+	{
+		romBank[i - 0x4000] = block[i];
+	}
+	ppu[3]=0;
 }
 
 
 MMU::~MMU()
 {
+}
+
+void MMU::setOpcode(uint8_t* ptr)
+{
+	this->opcode = ptr;
 }
 
 void MMU::setTCycles(int * tCycles)
@@ -73,11 +101,13 @@ uint8_t MMU::readByte(uint16_t addr)
 			if (addr < 0x0100) {
 				return bios[addr];
 			}
-			else if (addr == 0x0100) {
+			else if (addr == 0x100) {
 				inBios = false;
 			}
 		}
-		return rom[addr];
+		else {
+			return rom[addr];
+		}
 	case 0x1000:
 	case 0x2000:
 	case 0x3000:
@@ -113,15 +143,21 @@ uint8_t MMU::readByte(uint16_t addr)
 	case 0xD000:
 		return GBCBank[addr - 0xD000];
 	case 0xF000:
+		if (addr == 0xFFFF) {
+			return interuptEnable;
+		}
 		if (addr >= 0xFF80) {
 			return zram[addr - 0xFF80];
+		}
+		if (addr >= 0xFF40) {
+			return ppu[addr - 0xFF40];
 		}
 		if (addr >= 0xFF00) {
 			//implement IO later
 			return 0;
 		}
 		if (addr >= 0xFEA0) {
-			std::cout << "you shouldn't be here" << std::endl;
+			std::cout << "you shouldn't read here      " <<std::hex << *opcode << std::endl;
 			return 0;
 		}
 		if (addr >= 0xFE00) {
@@ -138,12 +174,13 @@ uint8_t MMU::readByte(uint16_t addr)
 
 uint16_t MMU::readWord(uint16_t addr)
 {
-	std::cout << (unsigned int)addr << "addr" << std::endl;
+	//std::cout << std::hex<< (((readByte(addr + 1)) << 8) + readByte(addr)) << "addr" << std::endl;
 	return ((readByte(addr + 1)) << 8) + readByte(addr);
 }
 
 void MMU::writeByte(uint16_t addr, uint8_t value)
 {
+	
 	switch (addr & 0xF000)
 	{
 	case 0x0000:
@@ -158,40 +195,38 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 			}
 		}
 	case 0x1000:
-		if (MBC1rules || MBC2rules) {
-			//enable RAM banking
-			if (MBC2rules) {
-				//if MBC2, bit 4 must be 0
-				if (((addr >> 3) & 1) == 1) {
-					return;
-				}
-			}
-			//0xA enables RAM
-			if ((value & 0xF) == 0xA) {
+		if (MBC1rules) {
+			if((value & 0xF) == 0xA) {
 				enableRAM = true;
 			}
-			//0x0 disables RAM
 			else if ((value & 0xF) == 0) {
 				enableRAM = false;
+			}
+		}
+		else if (MBC2rules) {
+			if (((addr >> 8) & 1) == 0) {
+				if ((value & 0xF) == 0xA) {
+					enableRAM = true;
+				}
+				else if ((value & 0xF) == 0) {
+					enableRAM = false;
+				}
 			}
 		}
 		break;
 	case 0x2000:
 	case 0x3000:
-		if (MBC1rules || MBC2rules) {
-			if (MBC2rules) {
-				currRomBank = value & 0xF;
-				if (currRomBank == 0) {
-					currRomBank++;
-				}
-				return;
+		if (MBC1rules) {
+			if (value == 0) {
+				value++;
 			}
-			uint8_t loFive = value & ~(~0U << 5);
-			value &= (~(~0U << 3) << 5);
-			value += loFive;
-			if (currRomBank == 0) {
-				currRomBank++;
-			}
+			value &= (~(~0U << 5));
+			currRomBank &= 224;
+			currRomBank |= value;
+		}
+		else if (MBC2rules) {
+			value &= (~(~0U << 4));
+			currRomBank = value;
 		}
 		break;
 
@@ -199,15 +234,17 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 	case 0x5000:
 		if (MBC1rules) {
 			if (ROMBanking) {
-				currRomBank &= ~(~0U << 5);
-				value &= (~(~0U << 3) << 5);
-				currRomBank += value;
-				if (currRomBank == 0) {
-					currRomBank++;
+				currentBank = 0;
+				value &= 3;
+				value <<=5;
+				if ((currRomBank & (~(~0U << 5))) == 0) {
+					value++;
 				}
+				currRomBank &= (~(~0U << 5));
+				currRomBank |= value;
 			}
 			else {
-				currentBank = value & (~(~0U << 2));
+				currentBank = value & 3;
 			}
 		}
 		break;
@@ -217,7 +254,7 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 			uint8_t bitZero = value & 1;
 			ROMBanking = (bitZero == 0);
 			if (ROMBanking) {
-				currRomBank == 0;
+				currRomBank = 0;
 			}
 		}
 		break;
@@ -243,7 +280,16 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 		break;
 	case 0xA000:
 	case 0xB000:
-		cartridgeRAM[addr - 0xA000] = value;
+		if (enableRAM) {
+			if (MBC1rules) {
+				uint16_t newaddress = addr - 0xA000;
+				cartridgeRAM[(0x2000 * currentBank) + newaddress] = value;
+			}
+			else if (MBC2rules && (addr < 0xA200)) {
+				uint16_t newaddress = addr - 0xA000;
+				cartridgeRAM[(0x2000 * currentBank) + newaddress] = value;
+			}
+		}
 		break;
 	case 0xC000:
 		ROMBank[addr - 0xC000] = value;
@@ -251,7 +297,17 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 	case 0xD000:
 		GBCBank[addr - 0xD000] = value;
 		break;
+	case 0xE000:
+
 	case 0xF000:
+		if (addr <= 0xFDFF) {
+			writeByte(addr - 0x2000, value);
+			break;
+		}
+		if (addr == 0xFFFF) {
+			interuptEnable = value;
+			break;
+		}
 		if (addr >= 0xFF80) {
 			zram[addr - 0xFF80] = value;
 			break;
@@ -280,30 +336,30 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 				io[addr - 0xFF00] = value;
 				break;
 			}
-			else {
+			else if (addr == 0xFF46) {
+				unsigned short newAddr = value << 8;
+				for (int i = 0; i < 0xA0; i++) {
+					writeByte(0xFE00 + i, readByte(newAddr + i));
+				}
+				break;
+			}else if (addr == 0xFF44) {
 				//whenever the gameboy tries to write to this location directly, the 
 				//value gets set to zero
-				if (addr == 0xFF46) {
-					unsigned short newAddr = value << 8;
-					for (int i = 0; i < 0xA0; i++) {
-						writeByte(0xFE00 + i, readByte(newAddr + i));
-					}
-				}
-				if(addr = 0xFF44){
-					ppu[4] = 0;
-					break;
-				}
-				else {
+				ppu[4] = 0;
+				break;
+			}
+			else {
+				if (addr >= 0xFF40) {
 					ppu[addr - 0xFF40] = value;
 					break;
 				}
+				else {
+					io[addr - 0xFF00] = value;
+				}
+				
 			}
 
 			//implement IO later
-			break;
-		}
-		if (addr >= 0xFEA0) {
-			std::cout << "you shouldn't be here" << std::endl;
 			break;
 		}
 		if (addr >= 0xFE00) {
@@ -313,6 +369,9 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 	default:
 		break;
 	}
+
+
+
 }
 
 void MMU::writeWord(uint16_t addr, uint16_t value)
