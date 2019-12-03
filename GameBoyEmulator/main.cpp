@@ -5,12 +5,17 @@
 #include "CPU.h"
 #include "PPU.h"
 #include <opencv2/core/core.hpp>
+#include <SDL2/SDL.h>
+#include "main.h"
 
 using namespace std;
 
 typedef unsigned char BYTE;
 
 const int MAXCYCLES = 69905;
+MMU* memory;
+CPU* processor;
+PPU* ppu;
 
 struct HexCharStruct
 {
@@ -48,10 +53,57 @@ long getFileSize(FILE *file)
 }
 
 
+
+void handleInput(SDL_Event& event) {
+	if (event.type == SDL_KEYDOWN)
+	{
+		int key = -1;
+		switch (event.key.keysym.sym)
+		{
+		case SDLK_a: key = 4; break;
+		case SDLK_s: key = 5; break;
+		case SDLK_RETURN: key = 7; break;
+		case SDLK_SPACE: key = 6; break;
+		case SDLK_RIGHT: key = 0; break;
+		case SDLK_LEFT: key = 1; cout << "yes" << endl; break;
+		case SDLK_UP: key = 2; break;
+		case SDLK_DOWN: key = 3; break;
+		}
+		if (key != -1)
+		{
+			memory -> setKeyPressed(key);
+		}
+	}
+	//If a key was released
+	else if (event.type == SDL_KEYUP)
+	{
+		int key = -1;
+		switch (event.key.keysym.sym)
+		{
+		case SDLK_a: key = 4; break;
+		case SDLK_s: key = 5; break;
+		case SDLK_RETURN: key = 7; break;
+		case SDLK_SPACE: key = 6; break;
+		case SDLK_RIGHT: key = 0; break;
+		case SDLK_LEFT: key = 1; break;
+		case SDLK_UP: key = 2; break;
+		case SDLK_DOWN: key = 3; break;
+		}
+		if (key != -1)
+		{
+			memory ->setKeyReleased(key);
+		}
+	}
+}
+
+
 int main(int argc, char *argv[]) {
 	if (argc > 1) {
+		SDL_Event event;
+		SDL_Window *window{ SDL_CreateWindow("window", 0,0,0,0,0) };
 		Mat screen;
 		/*screen.create(160, 144, CV_8UC1);*/
+		bool logOPs = false;
 
 		ifstream gameROM;
 		gameROM.open(argv[1], ios::in | ios::binary | ios::ate);
@@ -63,18 +115,27 @@ int main(int argc, char *argv[]) {
 
 		int cyclesThisUpdate = 0;
 		
-		MMU* memory = new MMU(cartridgeBlock);
+		memory = new MMU(cartridgeBlock);
 		memory->setMBCRule(cartridgeBlock[0x147]);
-		CPU* processor = new CPU(memory);
-		PPU* ppu = new PPU(processor, memory);
+		processor = new CPU(memory);
+		ppu = new PPU(processor, memory);
 
-		int key = -1;
-		while (key == -1) {
+		bool calledOpcodes[0x100];
+		memset(calledOpcodes, false, sizeof(calledOpcodes));
+		int key = 0;
+		while (true) {
+			while (SDL_PollEvent(&event)) {
+				cout << "bab" << endl;
+				handleInput(event);
+			}
 			cyclesThisUpdate = 0;
 			processor->resetCycles();
 			if (processor->needScreenRefresh()) {
 				while (cyclesThisUpdate < MAXCYCLES) {
 					processor->execute();
+					/*if (processor->masterInterrupt) {
+						cout << std::hex << (int)processor->getOpcode() << "\t" << std::hex << (int)processor->PC->getValue()<< endl; 
+					}*/
 					cyclesThisUpdate += processor->cycles;
 					ppu->updateGraphics();
 					processor->handleInterrupts();
@@ -83,23 +144,19 @@ int main(int argc, char *argv[]) {
 				}
 
 				ppu->showScreen().copyTo(screen);
+				ppu->drawBackground();
 				imshow("GBE", screen);
 				key = waitKey(1);
 			}
 				
 		}
 		cout << "called standard opcodes" << endl;
-		for (size_t i = 0; i < 0xFF; i++)
+		for (size_t i = 0; i < 0x100; i++)
 		{
-			if (processor->calledOpcodes[i])
+			if (calledOpcodes[i])
 				cout << std::hex << i << endl;
 		}
-		cout << "called CB opcodes" << endl;
-		for (size_t i = 0; i < 0xFF; i++)
-		{
-			if (processor->CBCalledOpcodes[i])
-				cout << std::hex << i << endl;
-		}
+		
 
 		
 		//char contents[static_cast<size_t>(end - start)];

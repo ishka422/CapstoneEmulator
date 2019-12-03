@@ -48,20 +48,59 @@ MMU::MMU(uint8_t* block)
 	memset(oam, 0, sizeof(oam));
 	memset(io, 0, sizeof(io));
 	memset(zram, 0, sizeof(zram));
-	for (int i = 0; i < 0x39FF; i++)
+	memset(ppu, 0, sizeof(ppu));
+	for (int i = 0; i < 0x4000; i++)
 	{
 		rom[i] = block[i];
 	}
-	for (size_t i = 0x4000; i < 0x12000; i++)
+	for (int i = 0x4000; i < 0x8000; i++)
 	{
 		romBank[i - 0x4000] = block[i];
 	}
-	ppu[3]=0;
+
+	joyPadState = 0;
+	writeByte(0xFF05, 0x00);
+	writeByte(0xFF06, 0x00);
+	writeByte(0xFF07, 0x00);
+	writeByte(0xFF10, 0x80);
+	writeByte(0xFF11, 0xBF);
+	writeByte(0xFF12, 0xF3);
+	writeByte(0xFF14, 0xBF);
+	writeByte(0xFF16, 0x3F);
+	writeByte(0xFF17, 0x00);
+	writeByte(0xFF1A, 0x7F);
+	writeByte(0xFF1B, 0xFF);
+	writeByte(0xFF1C, 0x9F);
+	writeByte(0xFF1E, 0xBF);
+	writeByte(0xFF20, 0xFF);
+	writeByte(0xFF21, 0x00);
+	writeByte(0xFF22, 0x00);
+	writeByte(0xFF23, 0xBF);
+	writeByte(0xFF25, 0xF3);
+	writeByte(0xFF26, 0xF1);
+	writeByte(0xFF40, 0xF1);
+	writeByte(0xFF42, 0x00);
+	writeByte(0xFF43, 0x00);
+	writeByte(0xFF45, 0x00);
+	writeByte(0xFF47, 0xFC);
+	writeByte(0xFF48, 0xFF);
+	writeByte(0xFF49, 0xFF);
+	writeByte(0xFF4A, 0x00);
+	writeByte(0xFF4B, 0x00);
+	writeByte(0xFFFF, 0x00);
+
 }
 
 
 MMU::~MMU()
 {
+}
+
+void MMU::requestInterupt(uint8_t id)
+{
+	uint8_t requestRegister = readByte(0xFF0F);
+	requestRegister |= (1 << id);
+	writeByte(0xFF0F, requestRegister);
 }
 
 void MMU::setOpcode(uint8_t* ptr)
@@ -87,9 +126,60 @@ void MMU::setMBCRule(uint8_t setting)
 	case 6:
 		MBC2rules = true;
 		break;
-	default: 
+	default:
 		break;
 	}
+}
+
+void MMU::setKeyPressed(int key)
+{
+	bool notSet = false;
+	if (((joyPadState >> key) & 1) == 0) {
+		notSet = true;
+	}
+	bool button = true;
+	if (key < 3) {
+		button = false;
+	}
+	bool requestInterrupt = false;
+	uint8_t keyRequested = io[0];
+
+	joyPadState &= (~(1 << key) & 0xFF);
+
+	if (button && ((keyRequested >> 5) & 1) == 0) {
+		requestInterrupt = true;
+	}
+	else if (!button && ((keyRequested >> 4) & 1) == 0)
+	{
+		requestInterrupt = true;
+	}
+	if (requestInterrupt && !notSet) {
+		requestInterupt(4);
+	}
+}
+
+void MMU::setKeyReleased(int key)
+{
+	joyPadState |= (1 << key);
+}
+
+uint8_t MMU::getJoypadState()
+{
+	uint8_t state = io[0];
+	state = ~state;
+
+	if (((state >> 4) & 1) == 0) {
+		uint8_t top = joyPadState >> 4;
+		top |= 0xF0;
+		state &= top;
+	}
+	else if (((state >> 5) & 1) == 0) {
+		uint8_t bottom = joyPadState & 0x0F;
+		bottom |= 0xF0;
+		state &= bottom;
+	}
+	//std::cout << std::bitset<8>(state) << std::endl;
+	return state;
 }
 
 uint8_t MMU::readByte(uint16_t addr)
@@ -97,17 +187,18 @@ uint8_t MMU::readByte(uint16_t addr)
 	switch (addr & 0xF000)
 	{
 	case 0x0000:
-		if (inBios) {
+		/*if (inBios) {
 			if (addr < 0x0100) {
 				return bios[addr];
 			}
 			else if (addr == 0x100) {
+
 				inBios = false;
 			}
 		}
 		else {
 			return rom[addr];
-		}
+		}*/
 	case 0x1000:
 	case 0x2000:
 	case 0x3000:
@@ -117,7 +208,7 @@ uint8_t MMU::readByte(uint16_t addr)
 	case 0x5000:
 	case 0x6000:
 	case 0x7000:
-		return romBank[(addr - 0x4000) + (currRomBank * 0x4000)];
+		return romBank[(addr - 0x4000)];
 
 	case 0x8000:
 	case 0x9000:
@@ -137,7 +228,7 @@ uint8_t MMU::readByte(uint16_t addr)
 		}
 	case 0xA000:
 	case 0xB000:
-		return cartridgeRAM[currentBank * (addr - 0xA000)];
+		return cartridgeRAM[(addr - 0xA000)];
 	case 0xC000:
 		return ROMBank[addr - 0xC000];
 	case 0xD000:
@@ -147,14 +238,19 @@ uint8_t MMU::readByte(uint16_t addr)
 			return interuptEnable;
 		}
 		if (addr >= 0xFF80) {
+
 			return zram[addr - 0xFF80];
 		}
 		if (addr >= 0xFF40) {
 			return ppu[addr - 0xFF40];
 		}
 		if (addr >= 0xFF00) {
-			//implement IO later
-			return 0;
+			if (addr == 0xFF00) {
+				return getJoypadState();
+			}
+			else {
+				return io[addr - 0xFF00];
+			}
 		}
 		if (addr >= 0xFEA0) {
 			std::cout << "you shouldn't read here      " <<std::hex << *opcode << std::endl;
@@ -180,7 +276,7 @@ uint16_t MMU::readWord(uint16_t addr)
 
 void MMU::writeByte(uint16_t addr, uint8_t value)
 {
-	
+
 	switch (addr & 0xF000)
 	{
 	case 0x0000:
@@ -190,13 +286,14 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 				break;
 			}
 			else if (addr == 0x0100) {
+
 				inBios = false;
 				break;
 			}
 		}
 	case 0x1000:
 		if (MBC1rules) {
-			if((value & 0xF) == 0xA) {
+			if ((value & 0xF) == 0xA) {
 				enableRAM = true;
 			}
 			else if ((value & 0xF) == 0) {
@@ -236,7 +333,7 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 			if (ROMBanking) {
 				currentBank = 0;
 				value &= 3;
-				value <<=5;
+				value <<= 5;
 				if ((currRomBank & (~(~0U << 5))) == 0) {
 					value++;
 				}
@@ -274,6 +371,7 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 			BGMap2[addr - 0x9C00] = value;
 			break;
 		default:
+			//std::cout << "addr: " << std::hex << (int)(addr - 0x8000) << "\tValue: " << std::hex << (int)value << std::endl;
 			CRAM[addr - 0x8000] = value;
 			break;
 		}
@@ -300,10 +398,7 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 	case 0xE000:
 
 	case 0xF000:
-		if (addr <= 0xFDFF) {
-			writeByte(addr - 0x2000, value);
-			break;
-		}
+		
 		if (addr == 0xFFFF) {
 			interuptEnable = value;
 			break;
@@ -312,7 +407,26 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 			zram[addr - 0xFF80] = value;
 			break;
 		}
-		if (addr >= 0xFF00) {
+		if (addr >= 0xFF40) {
+			if (addr == 0xFF46) {
+				unsigned short newAddr = value << 8;
+				for (int i = 0; i < 0xA0; i++) {
+					writeByte(0xFE00 + i, readByte(newAddr + i));
+				}
+				break;
+			}
+			else if (addr == 0xFF44) {
+				//whenever the gameboy tries to write to this location directly, the 
+				//value gets set to zero
+				ppu[4] = 0;
+				break;
+			}
+			else {
+				ppu[addr - 0xFF40] = value;
+				break;
+			}
+		}
+		if(addr >= 0xFF00) {
 			if (addr == 0xFF07) { //TAC
 				uint8_t currFreq = readByte(0xFF07) & 0x3;
 				io[7] = value;
@@ -324,49 +438,35 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 					case 2: *tCycles = 64; break;
 					case 3: *tCycles = 256; break;
 					}
-					break;
+					
 				}
-
+				break;
 			}
 			else if (addr == 0xFF04) {
 				io[4] = 0;
 				break;
 			}
-			else if (addr < 0xFF40) {
+			else {
+				if (addr == 0xFF01) {
+					std::cout << (char)value;
+				}
 				io[addr - 0xFF00] = value;
 				break;
 			}
-			else if (addr == 0xFF46) {
-				unsigned short newAddr = value << 8;
-				for (int i = 0; i < 0xA0; i++) {
-					writeByte(0xFE00 + i, readByte(newAddr + i));
-				}
-				break;
-			}else if (addr == 0xFF44) {
-				//whenever the gameboy tries to write to this location directly, the 
-				//value gets set to zero
-				ppu[4] = 0;
-				break;
-			}
-			else {
-				if (addr >= 0xFF40) {
-					ppu[addr - 0xFF40] = value;
-					break;
-				}
-				else {
-					io[addr - 0xFF00] = value;
-				}
-				
-			}
-
-			//implement IO later
-			break;
+		}
+		if (addr >= 0xFEA0) {
+			std::cout<<"nope: " << std::hex << (int)addr << std::endl;
 		}
 		if (addr >= 0xFE00) {
 			oam[addr - 0xFE00] = value;
 			break;
 		}
+		if (addr >= 0xE000) {
+			writeByte(addr - 0x2000, value);
+			break;
+		}
 	default:
+		std::cout << "confused: " << std::hex << (int)addr << std::endl;
 		break;
 	}
 

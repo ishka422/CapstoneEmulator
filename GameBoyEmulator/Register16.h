@@ -18,9 +18,10 @@ public:
 	void inc();
 	void dec();
 	~Register16();
-
-private:
 	Register* high;
 	Register* low;
+
+private:
+	
 };
 

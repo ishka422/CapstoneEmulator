@@ -21,10 +21,11 @@ class MMU
 	int currRomBank;
 	int* tCycles;
 	uint8_t* opcode;
+	uint8_t joyPadState;
 
-
-	bool inBios;
+	
 public:
+	bool inBios;
 	static uint8_t bios[0x100];
 	
 
@@ -36,7 +37,7 @@ public:
 	//$4000 - $7FFF:	Cartridge ROM - Switchable bank
 	uint8_t romBank[0x8000];
 
-	//$8000 - $97FFF:	Character RAM
+	//$8000 - $97FF:	Character RAM
 	uint8_t CRAM[0x1800];
 
 	//$9800 - $9BFFF:	BG Map Data 1
@@ -77,9 +78,13 @@ public:
 
 	MMU(uint8_t* block);
 	~MMU();
+	void requestInterupt(uint8_t id);
 	void setOpcode(uint8_t* ptr);
 	void setTCycles(int* tCycles);
 	void setMBCRule(uint8_t setting);
+	void setKeyPressed(int key);
+	void setKeyReleased(int key);
+	uint8_t getJoypadState();
 
 	uint8_t readByte(uint16_t addr);
 	uint16_t readWord(uint16_t addr);

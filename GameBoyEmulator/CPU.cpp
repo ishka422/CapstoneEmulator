@@ -25,19 +25,28 @@ CPU::CPU(MMU* memory)
 	l = new Register();
 	SP = new Register16();
 	PC = new Register16();
+	AF = new Register16();
+	BC = new Register16();
+	DE = new Register16();
+	HL = new Register16();
 	CC = new ConditionCodes();
 	f = CC->getF();
-	AF.setHighRegister(a);
-	AF.setLowRegister(CC->getF());
-	BC.setHighRegister(b);
-	BC.setLowRegister(c);
-	DE.setHighRegister(d);
-	DE.setLowRegister(e);
-	HL.setHighRegister(h);
-	HL.setLowRegister(l);
-	memset(calledOpcodes, false, sizeof(calledOpcodes));
-	memset(CBCalledOpcodes, false, sizeof(CBCalledOpcodes));
+	AF->setHighRegister(a);
+	AF->setLowRegister(f);
+	BC->setHighRegister(b);
+	BC->setLowRegister(c);
+	DE->setHighRegister(d);
+	DE->setLowRegister(e);
+	HL->setHighRegister(h);
+	HL->setLowRegister(l);
+	
+	AF->setValue(0x01B0);
+	BC->setValue(0x0013);
+	DE->setValue(0x00D8);
+	HL->setValue(0x014D);
 
+	SP->setValue(0xFFFE);
+	PC->setValue(0x0100);
 	
 	this->memory = memory;
 	memory->setTCycles(tCycles);
@@ -565,24 +574,15 @@ CPU::CPU(MMU* memory)
 
 void CPU::execute()
 {
-	if (PC->getValue() == 0xeb) {
-		cout << "bap" << endl;
-	}
+	
 	*opcode = memory->readByte(PC->getValue());
-	//cout << std::hex<< (int)opcode << "  0x" << std::hex << PC->getValue()<< endl;
+	//if(masterInterrupt)
+		//cout << std::hex<< (int)*opcode << "  0x" << std::hex << PC->getValue()<< endl;
 	PC->inc();
-	calledOpcodes[*opcode] = true;
 	opcodes[*opcode]();
 	setCycles(*opcode);
 	updateTimers();
 
-}
-
-void CPU::requestInterupt(uint8_t id)
-{
-	uint8_t requestRegister = memory->readByte(0xFF0F);
-	requestRegister |= (1 << id);
-	memory->writeByte(0xFF0F, id);
 }
 
 void CPU::doInterrupt(int i, uint8_t req)
@@ -594,7 +594,7 @@ void CPU::doInterrupt(int i, uint8_t req)
 	PUSH(PC);
 
 	switch (i) {
-		case 0:  PC->setValue(0x40); break;
+	case 0:  PC->setValue(0x40);  break;
 		case 1:  PC->setValue(0x48); break;
 		case 2:  PC->setValue(0x50); break;
 		case 4:  PC->setValue(0x60); break;
@@ -610,8 +610,8 @@ void CPU::handleInterrupts()
 		uint8_t enabledInterrupts = memory->readByte(0xFFFF);
 		if (requestedInterrupts > 0) {
 			for (int i = 0; i < 5; i++) {
-				if ((requestedInterrupts >> i) == 1) {
-					if ((enabledInterrupts >> i) == 1) {
+				if (((requestedInterrupts >> i)&1) == 1) {
+					if (((enabledInterrupts >> i)&1) == 1) {
 						doInterrupt(i, requestedInterrupts);
 					}
 				}
@@ -641,6 +641,11 @@ uint16_t CPU::get2Bytes()
 }
 
 
+
+uint8_t CPU::getOpcode()
+{
+	return *opcode;
+}
 
 void CPU::resetCycles()
 {
@@ -692,7 +697,7 @@ void CPU::updateTimers()
 
 			if (memory->readByte(TIMA) == 255) {
 				memory->writeByte(TIMA, memory->readByte(TMA));
-				requestInterupt(2);
+				memory->requestInterupt(2);
 			}
 			else {
 				memory->writeByte(TIMA, memory->readByte(TIMA) + 1);
@@ -880,82 +885,82 @@ void CPU::RES_0_L() {
 	RES(l, 0);
 }
 void CPU::RES_1_L() {
-	RES(l, 0);
+	RES(l, 1);
 }
 void CPU::RES_2_L() {
-	RES(l, 0);
+	RES(l, 2);
 }
 void CPU::RES_3_L() {
-	RES(l, 0);
+	RES(l, 3);
 }
 void CPU::RES_4_L() {
-	RES(l, 0);
+	RES(l, 4);
 }
 void CPU::RES_5_L() {
-	RES(l, 0);
+	RES(l, 5);
 }
 void CPU::RES_6_L() {
-	RES(l, 0);
+	RES(l, 6);
 }
 void CPU::RES_7_L() {
-	RES(l, 0);
+	RES(l, 7);
 }
 
 void CPU::RES_0_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RES(temp, 0);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RES_1_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RES(temp, 1);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RES_2_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RES(temp, 2);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RES_3_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RES(temp, 3);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RES_4_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RES(temp, 4);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RES_5_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RES(temp, 5);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RES_6_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RES(temp, 6);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RES_7_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RES(temp, 7);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 
 void CPU::BIT_0_A() {
@@ -1138,28 +1143,28 @@ void CPU::BIT_7_L() {
 
 
 void CPU::BIT_0_aHL() {
-	BIT(memory->readByte(HL.getValue()), 0);
+	BIT(memory->readByte(HL->getValue()), 0);
 }
 void CPU::BIT_1_aHL() {
-	BIT(memory->readByte(HL.getValue()), 1);
+	BIT(memory->readByte(HL->getValue()), 1);
 }
 void CPU::BIT_2_aHL() {
-	BIT(memory->readByte(HL.getValue()), 2);
+	BIT(memory->readByte(HL->getValue()), 2);
 }
 void CPU::BIT_3_aHL() {
-	BIT(memory->readByte(HL.getValue()), 3);
+	BIT(memory->readByte(HL->getValue()), 3);
 }
 void CPU::BIT_4_aHL() {
-	BIT(memory->readByte(HL.getValue()), 4);
+	BIT(memory->readByte(HL->getValue()), 4);
 }
 void CPU::BIT_5_aHL() {
-	BIT(memory->readByte(HL.getValue()), 5);
+	BIT(memory->readByte(HL->getValue()), 5);
 }
 void CPU::BIT_6_aHL() {
-	BIT(memory->readByte(HL.getValue()), 6);
+	BIT(memory->readByte(HL->getValue()), 6);
 }
 void CPU::BIT_7_aHL() {
-	BIT(memory->readByte(HL.getValue()), 7);
+	BIT(memory->readByte(HL->getValue()), 7);
 }
 
 void CPU::RLC_A() {
@@ -1167,10 +1172,10 @@ void CPU::RLC_A() {
 }
 void CPU::RLC_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RLC(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RLC_B() {
 	RLC(b);
@@ -1196,10 +1201,10 @@ void CPU::RR_A() {
 }
 void CPU::RR_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RR(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RR_B() {
 	RR(b);
@@ -1224,10 +1229,10 @@ void CPU::RRC_A() {
 }
 void CPU::RRC_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RRC(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RRC_B() {
 	RRC(b);
@@ -1376,117 +1381,117 @@ void CPU::SET_0_H() {
 	SET(h, 0);
 }
 void CPU::SET_1_H() {
-	SET(h, 0);
+	SET(h, 1);
 }
 void CPU::SET_2_H() {
-	SET(h, 0);
+	SET(h, 2);
 }
 void CPU::SET_3_H() {
-	SET(h, 0);
+	SET(h, 3);
 }
 void CPU::SET_4_H() {
-	SET(h, 0);
+	SET(h, 4);
 }
 void CPU::SET_5_H() {
-	SET(h, 0);
+	SET(h, 5);
 }
 void CPU::SET_6_H() {
-	SET(h, 0);
+	SET(h, 6);
 }
 void CPU::SET_7_H() {
-	SET(h, 0);
+	SET(h, 7);
 }
 
 void CPU::SET_0_L() {
-	SET(h, 0);
+	SET(l, 0);
 }
 void CPU::SET_1_L() {
-	SET(h, 1);
+	SET(l, 1);
 }
 void CPU::SET_2_L() {
-	SET(h, 2);
+	SET(l, 2);
 }
 void CPU::SET_3_L() {
-	SET(h, 3);
+	SET(l, 3);
 }
 void CPU::SET_4_L() {
-	SET(h, 4);
+	SET(l, 4);
 }
 void CPU::SET_5_L() {
-	SET(h, 5);
+	SET(l, 5);
 }
 void CPU::SET_6_L() {
-	SET(h, 6);
+	SET(l, 6);
 }
 void CPU::SET_7_L() {
-	SET(h, 7);
+	SET(l, 7);
 }
 
 void CPU::SET_0_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SET(temp, 0);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SET_1_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SET(temp, 1);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SET_2_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SET(temp, 2);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SET_3_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SET(temp, 3);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SET_4_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SET(temp, 4);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SET_5_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SET(temp, 5);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SET_6_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SET(temp, 6);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SET_7_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SET(temp, 7);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SLA_A() {
 	SLA(a);
 }
 void CPU::SLA_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SLA(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SLA_B() {
 	SLA(b);
@@ -1511,10 +1516,10 @@ void CPU::SRA_A() {
 }
 void CPU::SRA_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SRA(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SRA_B() {
 	SRA(b);
@@ -1539,10 +1544,10 @@ void CPU::SRL_A() {
 }
 void CPU::SRL_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	SRL(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::SRL_B() {
 	SRL(b);
@@ -1566,7 +1571,7 @@ void CPU::SWAP_A() {
 	a->setValue(SWAP(a->getValue()));
 }
 void CPU::SWAP_aHL() {
-	memory->writeByte(HL.getValue(), memory->readByte(HL.getValue()));
+	memory->writeByte(HL->getValue(), memory->readByte(HL->getValue()));
 }
 void CPU::SWAP_B() {
 	b->setValue(SWAP(b->getValue()));
@@ -1591,10 +1596,10 @@ void CPU::RL_A() {
 }
 void CPU::RL_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	RL(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::RL_B() {
 	RL(b);
@@ -1628,13 +1633,13 @@ void CPU::LD_A_a16() {
 	);
 }
 void CPU::LD_A_aBC() {
-	a->setValue(memory->readByte(BC.getValue()));
+	a->setValue(memory->readByte(BC->getValue()));
 }
 void CPU::LD_A_aDE() {
-	a->setValue(memory->readByte(DE.getValue()));
+	a->setValue(memory->readByte(DE->getValue()));
 }
 void CPU::LD_A_aHL() {
-	a->setValue(memory->readByte(HL.getValue()));
+	a->setValue(memory->readByte(HL->getValue()));
 }
 void CPU::LD_A_B() {
 	a->setValue(b->getValue());
@@ -1646,9 +1651,7 @@ void CPU::LD_A_D() {
 	a->setValue(d->getValue());
 }
 void CPU::LD_A_d8() {
-	a->setValue(
-		memory->readByte(PC->getValue())
-	);
+	a->setValue(memory->readByte(PC->getValue()));
 	PC->inc();
 }
 void CPU::LD_A_E() {
@@ -1664,52 +1667,58 @@ void CPU::LD_a16_A() {
 	memory->writeByte(get2Bytes(), a->getValue());
 }
 void CPU::LD_a16_SP() {
-	memory->writeByte(PC->getValue(), SP->getLowReg()->getValue());
+
+	uint16_t word = get2Bytes();
+	memory->writeByte(word, SP -> getLowReg()->getValue());
+	memory->writeByte(word + 1, SP->getHighReg()->getValue());
+
+	/*memory->writeByte(PC->getValue(), SP->getLowReg()->getValue());
 	PC->inc();
 	memory->writeByte(PC->getValue(), SP->getHighReg()->getValue());
-	PC->inc();
+	PC->inc();*/
 }
 void CPU::LD_aBC_A() {
-	memory->writeByte(BC.getValue(), a->getValue());
+	memory->writeByte(BC->getValue(), a->getValue());
 }
 void CPU::LD_aDE_A() {
-	memory->writeByte(DE.getValue(), a->getValue());
+	memory->writeByte(DE->getValue(), a->getValue());
 }
 void CPU::LD_aHL_A() {
-	memory->writeByte(HL.getValue(), a->getValue());
+	memory->writeByte(HL->getValue(), a->getValue());
 }
 void CPU::LD_aHL_B() {
-	memory->writeByte(HL.getValue(), b->getValue());
+	memory->writeByte(HL->getValue(), b->getValue());
 }
 void CPU::LD_aHL_C() {
-	memory->writeByte(HL.getValue(), c->getValue());
+	memory->writeByte(HL->getValue(), c->getValue());
 }
 void CPU::LD_aHL_D() {
-	memory->writeByte(HL.getValue(), c->getValue());
+	memory->writeByte(HL->getValue(), c->getValue());
 }
 void CPU::LD_aHL_d8() {
-	memory->writeByte(HL.getValue(), memory->readByte(PC->getValue()));
+	memory->writeByte(HL->getValue(), memory->readByte(PC->getValue()));
 	PC->inc();
 }
 void CPU::LD_aHL_E() {
-	memory->writeByte(HL.getValue(), e->getValue());
+	memory->writeByte(HL->getValue(), e->getValue());
 }
 void CPU::LD_aHL_H() {
-	memory->writeByte(HL.getValue(), h->getValue());
+	memory->writeByte(HL->getValue(), h->getValue());
 }
 void CPU::LD_aHL_L() {
-	memory->writeByte(HL.getValue(), l->getValue());
+	memory->writeByte(HL->getValue(), l->getValue());
 }
 void CPU::LD_B_A() {
 	b->setValue(a->getValue());
 }
 void CPU::LD_B_aHL() {
-	b->setValue(memory->readByte(HL.getValue()));
+	b->setValue(memory->readByte(HL->getValue()));
 }
 void CPU::LD_B_B() {
 	b->setValue(b->getValue());
 }
 void CPU::LD_B_d8() {
+	
 	b->setValue(memory->readByte(PC->getValue()));
 	PC->inc();
 }
@@ -1729,8 +1738,7 @@ void CPU::LD_B_L() {
 	b->setValue(l->getValue());
 }
 void CPU::LD_BC_d16() {
-	BC.setValue(memory->readWord(PC->getValue()));
-	cout << std::hex << BC.getValue() << "    "<< PC->getValue()<<endl;
+	BC->setValue(memory->readWord(PC->getValue()));
 	PC->inc();
 	PC->inc();
 }
@@ -1738,7 +1746,7 @@ void CPU::LD_C_A() {
 	c->setValue(a->getValue());
 }
 void CPU::LD_C_aHL() {
-	c->setValue(memory->readByte(HL.getValue()));
+	c->setValue(memory->readByte(HL->getValue()));
 }
 void CPU::LD_C_B() {
 	c->setValue(b->getValue());
@@ -1766,7 +1774,7 @@ void CPU::LD_D_A() {
 	d->setValue(a->getValue());
 }
 void CPU::LD_D_aHL() {
-	d->setValue(memory->readByte(HL.getValue()));
+	d->setValue(memory->readByte(HL->getValue()));
 }
 void CPU::LD_D_B() {
 	d->setValue(b->getValue());
@@ -1791,7 +1799,7 @@ void CPU::LD_D_L() {
 	d->setValue(l->getValue());
 }
 void CPU::LD_DE_d16() {
-	DE.setValue(memory->readWord(PC->getValue()));
+	DE->setValue(memory->readWord(PC->getValue()));
 	PC->inc();
 	PC->inc();
 
@@ -1800,7 +1808,7 @@ void CPU::LD_E_A() {
 	e->setValue(a->getValue());
 }
 void CPU::LD_E_aHL() {
-	e->setValue(memory->readByte(HL.getValue()));
+	e->setValue(memory->readByte(HL->getValue()));
 }
 void CPU::LD_E_B() {
 	e->setValue(b->getValue());
@@ -1828,7 +1836,7 @@ void CPU::LD_H_A() {
 	h->setValue(a->getValue());
 }
 void CPU::LD_H_aHL() {
-	h->setValue(memory->readByte(HL.getValue()));
+	h->setValue(memory->readByte(HL->getValue()));
 }
 void CPU::LD_H_B() {
 	h->setValue(b->getValue());
@@ -1853,7 +1861,7 @@ void CPU::LD_H_L() {
 	h->setValue(l->getValue());
 }
 void CPU::LD_HL_d16() {
-	HL.setValue(memory->readWord(PC->getValue()));
+	HL->setValue(memory->readWord(PC->getValue()));
 	PC->inc();
 	PC->inc();	
 }
@@ -1867,22 +1875,22 @@ void CPU::LD_HL_SPpr8() {
 	if (((n & 0x0F) + (SP->getValue() & 0x000F) & 0x10) != 0) {
 		CC->setHalfCarry();
 	}
-	HL.setValue(result);
+	HL->setValue(result);
 	PC->inc();
 }
 void CPU::LD_HLhi_A() {
-	memory->writeByte(HL.getValue(), a->getValue());
-	HL.inc();
+	memory->writeByte(HL->getValue(), a->getValue());
+	HL->inc();
 }
 void CPU::LD_HLlo_A() {
-	memory->writeByte(HL.getValue(), a->getValue());
-	HL.dec();
+	memory->writeByte(HL->getValue(), a->getValue());
+	HL->dec();
 }
 void CPU::LD_L_A() {
 	l->setValue(a->getValue());
 }
 void CPU::LD_L_aHL() {
-	l->setValue(memory->readByte(HL.getValue()));
+	l->setValue(memory->readByte(HL->getValue()));
 }
 void CPU::LD_L_B() {
 	l->setValue(b->getValue());
@@ -1910,13 +1918,17 @@ void CPU::LD_SP_d16() {
 	SP->setValue(get2Bytes());
 }
 void CPU::LD_SP_HL() {
-	SP->setValue(HL.getValue());
+	SP->setValue(HL->getValue());
 }
 void CPU::LDH_A_a8() {
+	/*if (masterInterrupt && memory->readByte(PC->getValue() == 0x85)) {
+		cout << std::hex << (int)memory->readByte(0xFF00 + memory->readByte(PC->getValue())) << endl;
+	}*/
 	a->setValue(memory->readByte(0xFF00 + memory->readByte(PC->getValue())));
 	PC->inc();
 }
 void CPU::LDH_a8_A() {
+	
 	memory->writeByte(0xFF00 + memory->readByte(PC->getValue()), a->getValue());
 	PC->inc();
 }
@@ -1925,7 +1937,7 @@ void CPU::ADC_A_A() {
 	ADC(a->getValue());
 }
 void CPU::ADC_A_aHL() {
-	ADC(memory->readByte(HL.getValue()));
+	ADC(memory->readByte(HL->getValue()));
 }
 void CPU::ADC_A_B() {
 	ADC(b->getValue());
@@ -1938,6 +1950,7 @@ void CPU::ADC_A_D() {
 }
 void CPU::ADC_A_d8() {
 	ADC(memory->readByte(PC->getValue()));
+	PC->inc();
 }
 void CPU::ADC_A_E() {
 	ADC(e->getValue());
@@ -1952,7 +1965,7 @@ void CPU::ADD_A_A() {
 	ADD(a->getValue());
 }
 void CPU::ADD_A_aHL() {
-	ADD(memory->readByte(HL.getValue()));
+	ADD(memory->readByte(HL->getValue()));
 }
 void CPU::ADD_A_B() {
 	ADD(b->getValue());
@@ -1977,36 +1990,38 @@ void CPU::ADD_A_L() {
 	ADD(l->getValue());
 }
 void CPU::ADD_HL_BC() {
-	ADD_HL(BC.getValue());
+	ADD_HL(BC->getValue());
 }
 void CPU::ADD_HL_DE() {
-	ADD_HL(DE.getValue());
+	ADD_HL(DE->getValue());
 }
 void CPU::ADD_HL_HL() {
-	ADD_HL(HL.getValue());
+	ADD_HL(HL->getValue());
 }
 void CPU::LD_A_HLP()
 {
-	a->setValue(memory->readByte(HL.getValue()));
-	HL.inc();
+	a->setValue(memory->readByte(HL->getValue()));
+	HL->inc();
 }
 void CPU::ADD_HL_SP() {
 	ADD_HL(SP->getValue());
 }
 void CPU::LD_A_HLD()
 {
-	a->setValue(memory->readByte(HL.getValue()));
-	HL.dec();
+	a->setValue(memory->readByte(HL->getValue()));
+	HL->dec();
 }
 void CPU::ADD_SP_r8() {
 	ADD_SP(memory->readByte(PC->getValue()));
 	PC->inc();
 }
 void CPU::AND_A() {
+	//cout << (int)a->getValue() << endl;
 	AND(a->getValue());
+	//cout << (int)a->getValue() << endl << endl;
 }
 void CPU::AND_aHL() {
-	AND(memory->readByte(HL.getValue()));
+	AND(memory->readByte(HL->getValue()));
 }
 void CPU::AND_B() {
 	AND(b->getValue());
@@ -2036,6 +2051,7 @@ void CPU::CALL_a16() {
 	CALL();
 }
 void CPU::CALL_C_a16() {
+	
 	if (CC->getCarry()) {
 		CALL();
 		//branch = true?
@@ -2090,10 +2106,7 @@ void CPU::CP_A() {
 	CP(a->getValue());
 }
 void CPU::CP_aHL() {
-	if (a->getValue() == 0xa8 && HL.getValue() == 0x0104) {
-		cout << "a: " << std::hex << memory->readByte(a->getValue()) << "  HL: "<< std::hex << memory->readByte(HL.getValue()) << endl;
-	}
-	CP(memory->readByte(HL.getValue()));
+	CP(memory->readByte(HL->getValue()));
 }
 void CPU::CP_B() {
 	CP(b->getValue());
@@ -2157,16 +2170,16 @@ void CPU::DEC_A() {
 }
 void CPU::DEC_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	DEC8b(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	//delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	
 }
 void CPU::DEC_B() {
 	DEC8b(b);
 }
 void CPU::DEC_BC() {
-	BC.dec();
+	BC->dec();
 }
 void CPU::DEC_C() {
 	DEC8b(c);
@@ -2175,7 +2188,7 @@ void CPU::DEC_D() {
 	DEC8b(d);
 }
 void CPU::DEC_DE() {
-	DE.dec();
+	DE->dec();
 }
 void CPU::DEC_E() {
 	DEC8b(e);
@@ -2184,7 +2197,7 @@ void CPU::DEC_H() {
 	DEC8b(h);
 }
 void CPU::DEC_HL() {
-	HL.dec();
+	HL->dec();
 }
 void CPU::DEC_L() {
 	DEC8b(l);
@@ -2196,7 +2209,6 @@ void CPU::DI() {
 	masterInterrupt = false;
 }
 void CPU::EI() {
-	cout << "enabling" << endl;
 	masterInterrupt = true;
 }
 
@@ -2210,16 +2222,15 @@ void CPU::INC_A() {
 }
 void CPU::INC_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	INC8b(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
 }
 void CPU::INC_B() {
 	INC8b(b);
 }
 void CPU::INC_BC() {
-	BC.inc();
+	BC->inc();
 }
 void CPU::INC_C() {
 	INC8b(c);
@@ -2228,7 +2239,7 @@ void CPU::INC_D() {
 	INC8b(d);
 }
 void CPU::INC_DE() {
-	DE.inc();
+	DE->inc();
 }
 void CPU::INC_E() {
 	INC8b(e);
@@ -2237,7 +2248,7 @@ void CPU::INC_H() {
 	INC8b(h);
 }
 void CPU::INC_HL() {
-	HL.inc();
+	HL->inc();
 }
 void CPU::INC_L() {
 	INC8b(l);
@@ -2246,10 +2257,11 @@ void CPU::INC_SP() {
 	SP->inc();
 }
 void CPU::JP_a16() {
-	PC->setValue(get2Bytes());
+	uint16_t val = get2Bytes();
+	PC->setValue(val);
 }
 void CPU::JP_aHL() {
-	PC->setValue(memory->readByte(HL.getValue()));
+	PC->setValue(memory->readByte(HL->getValue()));
 }
 void CPU::JP_C_a16() {
 	if (CC->getCarry()) {
@@ -2293,7 +2305,7 @@ void CPU::JP_Z_a16() {
 }
 void CPU::JR_C_r8() {
 	if (CC->getCarry()) {
-		PC->setValue(PC->getValue() + (char)memory->readByte(PC->getValue())+1);
+		PC->setValue(PC->getValue() + 1 + (char)memory->readByte(PC->getValue()));
 		//branch = true
 	}
 	else {
@@ -2302,7 +2314,7 @@ void CPU::JR_C_r8() {
 }
 void CPU::JR_NC_r8() {
 	if (!CC->getCarry()) {
-		PC->setValue(PC->getValue() + (char)memory->readByte(PC->getValue())+1);
+		PC->setValue(PC->getValue() + 1 + (char)memory->readByte(PC->getValue()));
 		//branch = true
 	}
 	else {
@@ -2311,7 +2323,7 @@ void CPU::JR_NC_r8() {
 }
 void CPU::JR_NZ_r8() {
 	if (!CC->getZero()) {
-		PC->setValue(PC->getValue() + (char)memory->readByte(PC->getValue())+1);
+		PC->setValue(PC->getValue() +1 + (char)memory->readByte(PC->getValue()));
 		
 		//branch = true
 	}
@@ -2320,11 +2332,11 @@ void CPU::JR_NZ_r8() {
 	}
 }
 void CPU::JR_r8() {
-	PC->setValue(PC->getValue() + (char)memory->readByte(PC->getValue())+1);
+	PC->setValue(PC->getValue()+1 + (char)memory->readByte(PC->getValue()));
 }
 void CPU::JR_Z_r8() {
 	if (CC->getZero()) {
-		PC->setValue(PC->getValue() + (char)memory->readByte(PC->getValue())+1);
+		PC->setValue(PC->getValue()+1 + (char)memory->readByte(PC->getValue()));
 		//branch = true
 	}
 	else {
@@ -2337,7 +2349,7 @@ void CPU::OR_A() {
 	OR(a->getValue());
 }
 void CPU::OR_aHL() {
-	OR(memory->readByte(HL.getValue()));
+	OR(memory->readByte(HL->getValue()));
 }
 void CPU::OR_B() {
 	OR(b->getValue());
@@ -2350,6 +2362,7 @@ void CPU::OR_D() {
 }
 void CPU::OR_d8() {
 	OR(memory->readByte(PC->getValue()));
+	PC->inc();
 }
 void CPU::OR_E() {
 	OR(e->getValue());
@@ -2361,16 +2374,16 @@ void CPU::OR_L() {
 	OR(l->getValue());
 }
 void CPU::POP_AF() {
-	POP(&AF);
+	POP(AF);
 }
 void CPU::POP_BC() {
-	POP(&BC);
+	POP(BC);
 }
 void CPU::POP_DE() {
-	POP(&DE);
+	POP(DE);
 }
 void CPU::POP_HL() {
-	POP(&HL);
+	POP(HL);
 }
 
 void CPU::LD_Ca_A()
@@ -2384,7 +2397,6 @@ void CPU::LD_Ca_A()
 void CPU::PREFIX_CB() {
 
 	CBopcodes[memory->readByte(PC->getValue())]();
-	CBCalledOpcodes[memory->readByte(PC->getValue())] = true;
 	addCBCycles(memory->readByte(PC->getValue()));
 	PC->inc();
 }
@@ -2393,16 +2405,18 @@ void CPU::PREFIX_CB() {
 
 
 void CPU::PUSH_AF() {
-	PUSH(&AF);
+	
+	PUSH(AF);
+	
 }
 void CPU::PUSH_BC() {
-	PUSH(&BC);
+	PUSH(BC);
 }
 void CPU::PUSH_DE() {
-	PUSH(&DE);
+	PUSH(DE);
 }
 void CPU::PUSH_HL() {
-	PUSH(&HL);
+	PUSH(HL);
 }
 
 
@@ -2505,7 +2519,7 @@ void CPU::SBC_A_A() {
 	SBC(a->getValue());
 }
 void CPU::SBC_A_aHL() {
-	SBC(memory->readByte(HL.getValue()));
+	SBC(memory->readByte(HL->getValue()));
 }
 void CPU::SBC_A_B() {
 	SBC(b->getValue());
@@ -2518,6 +2532,7 @@ void CPU::SBC_A_D() {
 }
 void CPU::SBC_A_d8() {
 	SBC(memory->readByte(PC->getValue()));
+	PC->inc();
 }
 void CPU::SBC_A_E() {
 	SBC(e->getValue());
@@ -2548,7 +2563,7 @@ void CPU::SUB_A() {
 	sub(a->getValue());
 }
 void CPU::SUB_aHL() {
-	memory->readByte(HL.getValue());
+	sub(memory->readByte(HL->getValue()));
 }
 void CPU::SUB_B() {
 	sub(b->getValue());
@@ -2560,7 +2575,8 @@ void CPU::SUB_D() {
 	sub(d->getValue());
 }
 void CPU::SUB_d8() {
-	memory->readByte(PC->getValue());
+	sub(memory->readByte(PC->getValue()));
+	PC->inc();
 }
 void CPU::SUB_E() {
 	sub(e->getValue());
@@ -2577,10 +2593,10 @@ void CPU::XOR_A() {
 }
 void CPU::XOR_aHL() {
 	Register* temp = new Register();
-	temp->setValue(memory->readByte(HL.getValue()));
+	temp->setValue(memory->readByte(HL->getValue()));
 	XOR(temp);
-	memory->writeByte(HL.getValue(), temp->getValue());
-	delete temp;
+	memory->writeByte(HL->getValue(), temp->getValue());
+	 
 }
 void CPU::XOR_B() {
 	XOR(b);
@@ -2596,7 +2612,7 @@ void CPU::XOR_d8() {
 	temp->setValue(memory->readByte(PC->getValue()));
 	XOR(temp);
 	memory->writeByte(PC->getValue(), temp->getValue());
-	delete temp;
+	 
 	PC->inc();
 }
 void CPU::XOR_E() {

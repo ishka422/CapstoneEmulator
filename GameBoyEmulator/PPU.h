@@ -37,6 +37,7 @@ public:
 	bool LCDEnabled();
 	void drawLine();
 	Mat showScreen();
+	void drawBackground();
 
 
 private:

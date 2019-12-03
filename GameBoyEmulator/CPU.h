@@ -27,7 +27,7 @@ class CPU
 	bool halted;
 	int timerCycles;
 	int divideRegister;
-	uint8_t* opcode;
+	
 
 	//int  CBMachineCycles[256];
 	//int CBTimeCycles[256];
@@ -37,7 +37,7 @@ class CPU
 
 	//int machineCycles[256];
 
-	bool masterInterrupt;
+	
 	
 	MMU* memory;
 	map <uint8_t, Action> opcodes;
@@ -46,12 +46,12 @@ class CPU
 
 public:
 
-	bool calledOpcodes[0xFF];
-	bool CBCalledOpcodes[0xFF];
+	uint8_t* opcode;
 	int *tCycles;
 	int mCycles;
 	int cycles;
-
+	bool masterInterrupt;
+	uint8_t getOpcode();
 	void resetCycles();
 	void setCycles(uint8_t opcode);
 	void addCBCycles(uint8_t opcode);
@@ -72,10 +72,10 @@ public:
 	Register* l;
 
 
-	Register16 AF;
-	Register16 BC;
-	Register16 DE;
-	Register16 HL;
+	Register16* AF;
+	Register16* BC;
+	Register16* DE;
+	Register16* HL;
 	Register16* SP;
 	Register16* PC;
 	ConditionCodes* CC;
@@ -119,7 +119,7 @@ public:
 
 	void execute();
 
-	void requestInterupt(uint8_t id);
+	
 	void doInterrupt(int i, uint8_t req);
 	void handleInterrupts();
 

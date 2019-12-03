@@ -38,7 +38,7 @@ void PPU::updateGraphics()
 		lineCounter = 456;
 
 		if (currentLine == 144) {
-			cpu->requestInterupt(0);
+			memory->requestInterupt(0);
 		}
 		else if (currentLine > 153){
 			memory->writeByte(0xFF44, 0);
@@ -116,6 +116,7 @@ void PPU::doTiles()
 			unsigned short tileCol = (xpos / 8);
 			signed short tileNum;
 			unsigned short tileAddress = backgroundMemory + tileRow + tileCol;
+			//cout << std::hex << tileAddress << endl;
 			if (!sign) {
 				tileNum = memory->readByte(tileAddress);
 			}
@@ -123,7 +124,7 @@ void PPU::doTiles()
 				tileNum = (char)memory->readByte(tileAddress);
 			}
 
-			short tileLocation = tileData;
+			unsigned short tileLocation = tileData;
 			if (sign) {
 				tileLocation += ((tileNum + 128) * 16);
 			}
@@ -132,8 +133,11 @@ void PPU::doTiles()
 			}
 			uint8_t line = ypos % 8;
 			line *= 2;
+			
 			uint8_t data1 = memory->readByte(tileLocation + line);
 			uint8_t data2 = memory->readByte(tileLocation + line + 1);
+
+			//cout << std::hex << (int)(tileLocation + line) <<"\t"<< std::bitset<8> (data1)<< endl;
 
 			int intensityBit = xpos % 8;
 			intensityBit -= 7;
@@ -148,6 +152,9 @@ void PPU::doTiles()
 			int finally = memory->readByte(0xFF44);
 			if ((finally < 0) || (finally > 143) || (pixel < 0) || (pixel > 159)) {
 				continue;
+			}
+			if (col != 255) {
+				cout << "x: " << finally << "\ty: " << pixel << "\t" << (int)col << endl;
 			}
 			screen.at<uchar>(finally, pixel) = saturate_cast<uchar>(col);
 
@@ -301,18 +308,20 @@ void PPU::setLCDStatus()
 		}
 
 		if (requestInterupt && (mode != currMode)) {
-			cpu->requestInterupt(1);
+			memory->requestInterupt(1);
 		}
 		if (memory->readByte(0xFF44) == memory->readByte(0xFF45)) {
 			status |= (1 << 2);
 			if (((status >> 6) & 1 )== 1) {
-				cpu->requestInterupt(1);
+				memory->requestInterupt(1);
 			}
-			else {
-				status &= ~(1 << 2);
-			}
-			memory->writeByte(0xFF41, status);
+			
 		}
+		else {
+			status &= ~(1 << 2);
+		}
+		memory->writeByte(0xFF41, status);
+		
 
 	}
 
@@ -327,9 +336,11 @@ void PPU::drawLine()
 {
 	uint8_t control = memory->readByte(0xFF40);
 	if ((control & 1 )== 1) {
+		
 		doTiles();
 	}
 	if (((control >> 1) & 1) == 1) {
+		cout << "yes" << endl;
 		doSprites();
 	}
 }
@@ -337,4 +348,42 @@ void PPU::drawLine()
 Mat PPU::showScreen()
 {
 	return screen;
+}
+
+void PPU::drawBackground()
+{
+	Mat bg(128, 192, CV_8UC1);
+	int tileIndex = 0;
+	for (int i = 0; i < 16; i++)
+	{
+		for (int j = 0; j < 24; j++) {
+			for (int a = 0; a < 8; a++) {
+				for (int b = 0; b < 8; b++) {
+					/*if ((0x8000 + tileIndex) <0x8210 && (0x8000 + tileIndex) >= 0x8200) {
+						bg.at<uchar>(a + (8 * i), (8 * j) + (7 - b)) = 0;
+					}*/
+					//else {
+						uint8_t data1 = memory->readByte(0x8000 + tileIndex);
+						uint8_t data2 = memory->readByte(0x8000 + tileIndex + 1);
+
+						uint8_t value = (data2 >> b) & 1;
+						value <<= 1;
+						value |= ((data1 >> b) & 1);
+
+						uint8_t pixel = (255 - (value*(255 / 3)));
+
+						uchar col = getPallet(0xFF47, value);
+
+						bg.at<uchar>(a + (8 * i), (8 * j) + (7 - b)) = col;
+					//}
+					
+
+				}
+				tileIndex += 2;
+			}
+			
+		}
+	}
+
+	imshow("Tiles", bg);
 }

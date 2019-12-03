@@ -19,8 +19,9 @@ public:
 	void clearZero();
 	void clearFlags();
 	~ConditionCodes();
-private:
 	Register* F;
+private:
+	
 	
 
 };
