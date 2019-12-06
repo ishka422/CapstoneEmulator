@@ -125,18 +125,22 @@ int main(int argc, char *argv[]) {
 		int key = 0;
 		while (true) {
 			while (SDL_PollEvent(&event)) {
-				cout << "bab" << endl;
 				handleInput(event);
 			}
 			cyclesThisUpdate = 0;
 			processor->resetCycles();
 			if (processor->needScreenRefresh()) {
 				while (cyclesThisUpdate < MAXCYCLES) {
+					/*if (!calledOpcodes[memory->readByte(processor->PC->getValue())]) {
+						calledOpcodes[memory->readByte(processor->PC->getValue())] = true;
+						cout << std::hex << (int)memory->readByte(processor->PC->getValue()) << "\t"<< std::hex << (int)processor->PC->getValue()<< endl;
+					}*/
 					processor->execute();
 					/*if (processor->masterInterrupt) {
 						cout << std::hex << (int)processor->getOpcode() << "\t" << std::hex << (int)processor->PC->getValue()<< endl; 
 					}*/
 					cyclesThisUpdate += processor->cycles;
+					processor->updateTimers();
 					ppu->updateGraphics();
 					processor->handleInterrupts();
 					

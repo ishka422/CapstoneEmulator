@@ -11,7 +11,7 @@ PPU::PPU(CPU* cpu, MMU* memory)
 	lcdControl = 0;
 	Mat temp(SCREEN_WIDTH, SCREEN_HEIGHT, CV_8UC1);
 	temp = Scalar::all(255);
-	//screen.create(SCREEN_HEIGHT, SCREEN_WIDTH, CV_8UC1);
+	screen.create(SCREEN_HEIGHT, SCREEN_WIDTH, CV_8UC1);
 	temp.copyTo(screen);
 	
 }
@@ -153,9 +153,6 @@ void PPU::doTiles()
 			if ((finally < 0) || (finally > 143) || (pixel < 0) || (pixel > 159)) {
 				continue;
 			}
-			if (col != 255) {
-				cout << "x: " << finally << "\ty: " << pixel << "\t" << (int)col << endl;
-			}
 			screen.at<uchar>(finally, pixel) = saturate_cast<uchar>(col);
 
 		}
@@ -253,7 +250,7 @@ void PPU::doSprites()
 				{
 					continue;
 				}
-				screen.at<uchar>(pixel, scanline) = value;
+				screen.at<uchar>(scanline, pixel) = value;
 				
 			}
 		}
@@ -340,7 +337,7 @@ void PPU::drawLine()
 		doTiles();
 	}
 	if (((control >> 1) & 1) == 1) {
-		cout << "yes" << endl;
+		//cout << "yes" << endl;
 		doSprites();
 	}
 }

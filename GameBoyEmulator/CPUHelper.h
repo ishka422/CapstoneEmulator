@@ -9,7 +9,8 @@ inline void CPU::ADD(uint8_t val)
 {
 	CC->clearFlags();
 	int result = a->getValue() + val;
-	a->setValue((uint8_t)(result & 0xFF));
+	
+	
 
 	if ((result & 0xFF) == 0)
 	{
@@ -22,13 +23,14 @@ inline void CPU::ADD(uint8_t val)
 	{
 		CC->setHalfCarry();
 	}
+	a->setValue((uint8_t)(result & 0xFF));
 }
 
 inline void CPU::sub(uint8_t val)
 {
 	CC->clearFlags();
 	int result = a->getValue() - val;
-	a->setValue((uint8_t)(result & 0xFF));
+	
 	int carryBits = a->getValue() ^ val ^ result;
 	CC->setSub();
 	if ((carryBits & 0x100) != 0) {
@@ -41,25 +43,27 @@ inline void CPU::sub(uint8_t val)
 	if (result == 0) {
 		CC->setZero();
 	}
+	a->setValue((uint8_t)(result & 0xFF));
 }
 
 inline void CPU::SBC(uint8_t val)
 {
+	int carry = CC->getCarry() ? 1:0;
+	int result = a->getValue() - val - carry;
 	CC->clearFlags();
-	int result = (a->getValue() - val) - CC->getCarry();
 	CC->setSub();
-	if ((result & 0x100) != 0)
-	{
-		CC->setCarry();
-	}
-	if (result == 0) {
+	if ((result & 0xFF) == 0) {
 		CC->setZero();
 	}
-	if (result < 0)
+	if (result < 0) {
 		CC->setCarry();
-	if ((a->getValue() & 0x0F) - (val & 0x0F) - CC->getCarry())
+	}
+	
+	if (((a->getValue() & 0xF) - (val & 0xF) - carry) < 0) {
 		CC->setHalfCarry();
-	a->setValue((uint8_t)(result & 0xFF));
+	}
+	a->setValue((uint8_t)(result&0xFF));
+
 }
 
 inline void CPU::ADD_HL(uint16_t val)
@@ -71,20 +75,20 @@ inline void CPU::ADD_HL(uint16_t val)
 	if (zero) {
 		CC->setZero();
 	}
-	if ((result >> 16) != 0) {
+	if ((result &0x10000)!= 0) {
 		CC->setCarry();
 	}
-	if ((HL->getValue() ^ val ^ (result & 0xFFFF)) & 0x1000) {
+	if ((HL->getValue()&0xFFF) + (val &0xFFF) > 0xFFF) {
 		CC->setHalfCarry();
 	}
 
-	HL->setValue((uint16_t)(val & 0xFFFF));
+	HL->setValue((uint16_t)(result));
 }
 
 inline void CPU::ADD_SP(int8_t val)
 {
 	CC->clearFlags();
-	int result = SP->getValue() + val;
+	unsigned int result = SP->getValue() + val;
 
 	if ((result >> 16) != 0) {
 		CC->setCarry();
@@ -93,13 +97,13 @@ inline void CPU::ADD_SP(int8_t val)
 		CC->setHalfCarry();
 	}
 
-	SP->setValue((uint16_t)(val & 0xFFFF));
+	SP->setValue((uint16_t)(result & 0xFFFF));
 }
 
 inline void CPU::CP(uint8_t val)
 {
 	CC->clearFlags();
-	if ((a->getValue() - val) == 0) {
+	if ((a->getValue() == val)) {
 		CC->setZero();
 	}
 	CC->setSub();
@@ -140,7 +144,7 @@ inline void CPU::INC8b(Register * reg)
 	else {
 		CC->clearZero();
 	}
-	if ((reg->getValue() & 0x0F) == 0x00) {
+	if ((reg->getValue() & 0x0F) ==0x00) {
 		CC->setHalfCarry();
 	}
 	else {
@@ -153,20 +157,22 @@ inline void CPU::ADC(uint8_t val)
 	int carry = CC->getCarry() ? 1 : 0;
 	int result = a->getValue() + val + carry;
 	CC->clearFlags();
-	a->setValue((uint8_t)(result & 0xFF));
+	
 	if ((result & 0xFF) == 0) {
 		CC->setZero();
 	}
 	if (result > 0xFF) {
 		CC->setCarry();
 	}
-	if ((((a->getValue() & 0x0F) + (val & 0x0F) + CC->getCarry())) > 0x0F) {
+	if ((((a->getValue() & 0x0F) + (val & 0x0F) + carry)) > 0x0F) {
 		CC->setHalfCarry();
 	}
+	a->setValue((uint8_t)(result & 0xFF));
 }
 
 inline void CPU::AND(uint8_t val)
 {
+	
 	CC->clearFlags();
 	uint8_t result = a->getValue() & val;
 	if (result == 0) {
@@ -218,20 +224,18 @@ inline void CPU::RES(Register* reg, int bit)
 
 inline void CPU::RL(Register * reg)
 {
-	int carrySet = (CC->getCarry()) ? 1 : 0;
-	int result = reg->getValue();
+	bool carrySet = (CC->getCarry());
+	bool MSB = (reg->getValue() >> 7) == 1;
+	uint8_t result = reg->getValue();
 	CC->clearFlags();
-	if (((result >> 7)&1) == 1) {
+	result <<= 1;
+	if (MSB)
 		CC->setCarry();
-	}
-	result <<= 1;
-	result |= carrySet;
-	if ((result & 0xFF) == 0) {
+	if (carrySet)
+		result |= 1;
+	if (result == 0)
 		CC->setZero();
-	}
-	result <<= 1;
-	result |= carrySet;
-	reg->setValue((uint8_t)(result & 0xFF));
+	reg->setValue(result);
 }
 
 inline void CPU::RLC(Register * reg)

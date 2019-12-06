@@ -1,5 +1,5 @@
 #include "Register.h"
-
+#include <iostream>
 
 void Register::increment()
 {
@@ -18,7 +18,7 @@ Register::Register()
 
 Register::~Register()
 {
-	delete &value;
+	//value = NULL;
 }
 
 void Register::setValue(uint8_t val)

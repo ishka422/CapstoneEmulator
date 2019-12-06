@@ -58,8 +58,8 @@ MMU::MMU(uint8_t* block)
 		romBank[i - 0x4000] = block[i];
 	}
 
-	joyPadState = 0;
-	writeByte(0xFF05, 0x00);
+	joyPadState = 0xff;
+	/*writeByte(0xFF05, 0x00);
 	writeByte(0xFF06, 0x00);
 	writeByte(0xFF07, 0x00);
 	writeByte(0xFF10, 0x80);
@@ -87,7 +87,7 @@ MMU::MMU(uint8_t* block)
 	writeByte(0xFF49, 0xFF);
 	writeByte(0xFF4A, 0x00);
 	writeByte(0xFF4B, 0x00);
-	writeByte(0xFFFF, 0x00);
+	writeByte(0xFFFF, 0x00);*/
 
 }
 
@@ -167,6 +167,7 @@ uint8_t MMU::getJoypadState()
 {
 	uint8_t state = io[0];
 	state = ~state;
+	
 
 	if (((state >> 4) & 1) == 0) {
 		uint8_t top = joyPadState >> 4;
@@ -187,7 +188,7 @@ uint8_t MMU::readByte(uint16_t addr)
 	switch (addr & 0xF000)
 	{
 	case 0x0000:
-		/*if (inBios) {
+		if (inBios) {
 			if (addr < 0x0100) {
 				return bios[addr];
 			}
@@ -198,7 +199,7 @@ uint8_t MMU::readByte(uint16_t addr)
 		}
 		else {
 			return rom[addr];
-		}*/
+		}
 	case 0x1000:
 	case 0x2000:
 	case 0x3000:
@@ -253,8 +254,8 @@ uint8_t MMU::readByte(uint16_t addr)
 			}
 		}
 		if (addr >= 0xFEA0) {
-			std::cout << "you shouldn't read here      " <<std::hex << *opcode << std::endl;
-			return 0;
+			//std::cout << "you shouldn't read here      " <<std::hex << *opcode << std::endl;
+			return unused[addr - 0xFEA0];
 		}
 		if (addr >= 0xFE00) {
 			return oam[addr - 0xFE00];
@@ -430,7 +431,7 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 			if (addr == 0xFF07) { //TAC
 				uint8_t currFreq = readByte(0xFF07) & 0x3;
 				io[7] = value;
-				uint8_t newFreq = value & 0x3;
+				uint8_t newFreq = readByte(0xFF07) & 0x3;
 				if (newFreq != currFreq) {
 					switch (newFreq) {
 					case 0: *tCycles = 1024; break;
@@ -447,15 +448,17 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 				break;
 			}
 			else {
-				if (addr == 0xFF01) {
-					std::cout << (char)value;
-				}
+				/*if (addr == 0xFF01) {
+					std::cout << (unsigned char)value;
+				}*/
 				io[addr - 0xFF00] = value;
 				break;
 			}
 		}
 		if (addr >= 0xFEA0) {
-			std::cout<<"nope: " << std::hex << (int)addr << std::endl;
+			unused[addr - 0xFEA0] = value;
+			//std::cout<<"nope: " << std::hex << (int)addr <<"\t"<< std::hex << (int)*opcode << std::endl;
+			break;
 		}
 		if (addr >= 0xFE00) {
 			oam[addr - 0xFE00] = value;
