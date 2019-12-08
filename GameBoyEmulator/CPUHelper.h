@@ -204,13 +204,10 @@ inline void CPU::XOR(Register * reg)
 
 inline void CPU::BIT(uint8_t val, int bit)
 {
-	//std::cout << std::hex << val << std::endl;
 	if (((val >> bit) & 1) == 0) {
-		//cout << "true" << endl;
 		CC->setZero();
 	}
 	else {
-		//cout << "false" << endl;
 		CC->clearZero();
 	}
 	CC->setHalfCarry();

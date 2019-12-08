@@ -8,6 +8,11 @@
 #include <iostream> 
 #include "timings.h"
 #include <bitset>
+#include <vector>
+#include <algorithm>
+
+
+
 
 
 
@@ -24,9 +29,15 @@ class MMU
 	uint8_t joyPadState;
 
 	
+	
 public:
 	bool inBios;
 	static uint8_t bios[0x100];
+	bool changedTile[0x180];
+	bool replacedTile[0x180];
+	
+	bool writingToVRAM;
+	bool pendingChanges;
 	
 
 	//$0000 - $00FF:	Restart and Interupt vectors

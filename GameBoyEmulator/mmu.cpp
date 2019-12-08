@@ -49,6 +49,8 @@ MMU::MMU(uint8_t* block)
 	memset(io, 0, sizeof(io));
 	memset(zram, 0, sizeof(zram));
 	memset(ppu, 0, sizeof(ppu));
+	memset(changedTile, false, sizeof(changedTile));
+	memset(replacedTile, false, sizeof(replacedTile));
 	for (int i = 0; i < 0x4000; i++)
 	{
 		rom[i] = block[i];
@@ -59,6 +61,8 @@ MMU::MMU(uint8_t* block)
 	}
 
 	joyPadState = 0xff;
+	writingToVRAM = false;
+
 	/*writeByte(0xFF05, 0x00);
 	writeByte(0xFF06, 0x00);
 	writeByte(0xFF07, 0x00);
@@ -179,7 +183,6 @@ uint8_t MMU::getJoypadState()
 		bottom |= 0xF0;
 		state &= bottom;
 	}
-	//std::cout << std::bitset<8>(state) << std::endl;
 	return state;
 }
 
@@ -254,7 +257,6 @@ uint8_t MMU::readByte(uint16_t addr)
 			}
 		}
 		if (addr >= 0xFEA0) {
-			//std::cout << "you shouldn't read here      " <<std::hex << *opcode << std::endl;
 			return unused[addr - 0xFEA0];
 		}
 		if (addr >= 0xFE00) {
@@ -271,13 +273,18 @@ uint8_t MMU::readByte(uint16_t addr)
 
 uint16_t MMU::readWord(uint16_t addr)
 {
-	//std::cout << std::hex<< (((readByte(addr + 1)) << 8) + readByte(addr)) << "addr" << std::endl;
 	return ((readByte(addr + 1)) << 8) + readByte(addr);
 }
 
 void MMU::writeByte(uint16_t addr, uint8_t value)
 {
-
+	if (addr >= 0x8000 && addr < 0x9800) {
+		writingToVRAM = true;
+		
+	}
+	else {
+		writingToVRAM = false;
+	}
 	switch (addr & 0xF000)
 	{
 	case 0x0000:
@@ -372,7 +379,11 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 			BGMap2[addr - 0x9C00] = value;
 			break;
 		default:
-			//std::cout << "addr: " << std::hex << (int)(addr - 0x8000) << "\tValue: " << std::hex << (int)value << std::endl;
+			if ((addr & 0xF) == 0xF) {
+				changedTile[(addr - 0x8000) >> 4] = true;
+				replacedTile[(addr - 0x8000) >> 4] = false;
+				pendingChanges = true;
+			}
 			CRAM[addr - 0x8000] = value;
 			break;
 		}
@@ -448,16 +459,12 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 				break;
 			}
 			else {
-				/*if (addr == 0xFF01) {
-					std::cout << (unsigned char)value;
-				}*/
 				io[addr - 0xFF00] = value;
 				break;
 			}
 		}
 		if (addr >= 0xFEA0) {
 			unused[addr - 0xFEA0] = value;
-			//std::cout<<"nope: " << std::hex << (int)addr <<"\t"<< std::hex << (int)*opcode << std::endl;
 			break;
 		}
 		if (addr >= 0xFE00) {

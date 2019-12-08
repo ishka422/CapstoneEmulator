@@ -618,7 +618,6 @@ void CPU::handleInterrupts()
 	if (halted && memory->readByte(0xFF0F) != 0) {
 		halted = false;
 	}
-	//cout << "handeling interrupts" << endl;
 	if (masterInterrupt) {
 		uint8_t requestedInterrupts = memory->readByte(0xFF0F);
 		uint8_t enabledInterrupts = memory->readByte(0xFFFF);
@@ -1604,9 +1603,6 @@ void CPU::LD_A_A() {
 	a->setValue(a->getValue());
 }
 void CPU::LD_A_a16() {
-	/*if (PC->getValue() == 0xc2b5 || PC->getValue() == 0xc2b9) {
-		cout << std::hex << memory->readWord(PC->getValue()) << endl;
-	}*/
 	a->setValue(
 		memory->readByte(get2Bytes())
 	);
@@ -1720,7 +1716,6 @@ void CPU::LD_B_L() {
 	b->setValue(l->getValue());
 }
 void CPU::LD_BC_d16() {
-	//cout << "loading BC with : " << std::hex << (int)memory->readWord(PC->getValue()) <<"\t" << std::hex << (int)PC->getValue() << endl;
 	BC->setValue(memory->readWord(PC->getValue()));
 	PC->inc();
 	PC->inc();
@@ -1902,14 +1897,10 @@ void CPU::LD_SP_HL() {
 	SP->setValue(HL->getValue());
 }
 void CPU::LDH_A_a8() {
-	/*if (masterInterrupt && memory->readByte(PC->getValue() == 0x85)) {
-		cout << std::hex << (int)memory->readByte(0xFF00 + memory->readByte(PC->getValue())) << endl;
-	}*/
 	a->setValue(memory->readByte(0xFF00 + memory->readByte(PC->getValue())));
 	PC->inc();
 }
 void CPU::LDH_a8_A() {
-	//cout << std::hex << (0xFF00 + memory->readByte(PC->getValue())) << endl;
 	memory->writeByte((uint16_t)(0xFF00 + memory->readByte(PC->getValue())), a->getValue());
 	PC->inc();
 }
@@ -2009,9 +2000,7 @@ void CPU::ADD_SP_r8() {
 	PC->inc();
 }
 void CPU::AND_A() {
-	//cout << (int)a->getValue() << endl;
 	AND(a->getValue());
-	//cout << (int)a->getValue() << endl << endl;
 }
 void CPU::AND_aHL() {
 	AND(memory->readByte(HL->getValue()));
@@ -2112,7 +2101,6 @@ void CPU::CP_d8() {
 	PC->inc();
 }
 void CPU::CP_E() {
-	//cout << std::hex<<(int)e->getValue() << endl;
 	CP(e->getValue());
 }
 void CPU::CP_H() {
@@ -2166,9 +2154,6 @@ void CPU::DEC_aHL() {
 	memory->writeByte(HL->getValue(), temp.getValue());
 }
 void CPU::DEC_B() {
-	/*if (PC->getValue() > 0xcb2c && PC->getValue() < 0xcc00) {
-		cout << "decrement B: " << std::hex << PC->getValue() << endl;
-	}*/
 	DEC8b(b);
 }
 void CPU::DEC_BC() {
@@ -2196,10 +2181,7 @@ void CPU::DEC_L() {
 	DEC8b(l);
 }
 void CPU::DEC_SP() {
-	//cout << std::hex << (int)SP->getValue() << endl;
-
 	SP->dec();
-	//cout << std::hex << (int)SP->getValue() << endl;
 }
 void CPU::DI() {
 	masterInterrupt = false;
@@ -2555,9 +2537,7 @@ void CPU::SBC_A_D() {
 	SBC(d->getValue());
 }
 void CPU::SBC_A_d8() {
-	cout << std::hex <<(int) a->getValue() << " - " << std::hex<<(int)memory->readByte(PC->getValue())<<" - " <<CC->getCarry() << " = ";
 	SBC(memory->readByte(PC->getValue()));
-	cout << std::hex << (int)a->getValue() << endl;
 	PC->inc();
 }
 void CPU::SBC_A_E() {

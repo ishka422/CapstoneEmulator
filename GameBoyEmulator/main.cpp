@@ -65,7 +65,7 @@ void handleInput(SDL_Event& event) {
 		case SDLK_RETURN: key = 7; break;
 		case SDLK_SPACE: key = 6; break;
 		case SDLK_RIGHT: key = 0; break;
-		case SDLK_LEFT: key = 1; cout << "yes" << endl; break;
+		case SDLK_LEFT: key = 1; break;
 		case SDLK_UP: key = 2; break;
 		case SDLK_DOWN: key = 3; break;
 		}
@@ -115,13 +115,21 @@ int main(int argc, char *argv[]) {
 
 		int cyclesThisUpdate = 0;
 		
+		std::string gameName("");
+
+		for (int i = 0x0134; i < 0x144; i++) {
+			if (cartridgeBlock[i] != 0x00) {
+				gameName += (char)cartridgeBlock[i];
+			}
+		}
+
 		memory = new MMU(cartridgeBlock);
 		memory->setMBCRule(cartridgeBlock[0x147]);
 		processor = new CPU(memory);
-		ppu = new PPU(processor, memory);
+		ppu = new PPU(processor, memory, gameName);
 
-		bool calledOpcodes[0x100];
-		memset(calledOpcodes, false, sizeof(calledOpcodes));
+		ppu->loadReplacements();
+
 		int key = 0;
 		while (true) {
 			while (SDL_PollEvent(&event)) {
@@ -131,41 +139,20 @@ int main(int argc, char *argv[]) {
 			processor->resetCycles();
 			if (processor->needScreenRefresh()) {
 				while (cyclesThisUpdate < MAXCYCLES) {
-					/*if (!calledOpcodes[memory->readByte(processor->PC->getValue())]) {
-						calledOpcodes[memory->readByte(processor->PC->getValue())] = true;
-						cout << std::hex << (int)memory->readByte(processor->PC->getValue()) << "\t"<< std::hex << (int)processor->PC->getValue()<< endl;
-					}*/
 					processor->execute();
-					/*if (processor->masterInterrupt) {
-						cout << std::hex << (int)processor->getOpcode() << "\t" << std::hex << (int)processor->PC->getValue()<< endl; 
-					}*/
 					cyclesThisUpdate += processor->cycles;
 					processor->updateTimers();
 					ppu->updateGraphics();
 					processor->handleInterrupts();
-					
-					//cout << std::hex<< (int)processor->PC->getValue() << endl;
 				}
-
 				ppu->showScreen().copyTo(screen);
+				//ppu->saveSprites();
 				ppu->drawBackground();
-				imshow("GBE", screen);
+				ppu->handleReplacement();
+				imshow(gameName, screen);
 				key = waitKey(1);
 			}
-				
 		}
-		cout << "called standard opcodes" << endl;
-		for (size_t i = 0; i < 0x100; i++)
-		{
-			if (calledOpcodes[i])
-				cout << std::hex << i << endl;
-		}
-		
-
-		
-		//char contents[static_cast<size_t>(end - start)];
-
-		//contents.resize(static_cast<size_t>(end - start));
 		
 		getchar();
 		return 0;
