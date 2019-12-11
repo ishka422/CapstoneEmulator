@@ -55,7 +55,7 @@ MMU::MMU(uint8_t* block)
 	{
 		rom[i] = block[i];
 	}
-	for (int i = 0x4000; i < 0x8000; i++)
+	for (int i = 0x4000; i < 0xF000; i++)
 	{
 		romBank[i - 0x4000] = block[i];
 	}
@@ -125,11 +125,6 @@ void MMU::setMBCRule(uint8_t setting)
 	case 3:
 		MBC1rules = true;
 		break;
-	case 4:
-	case 5:
-	case 6:
-		MBC2rules = true;
-		break;
 	default:
 		break;
 	}
@@ -137,14 +132,9 @@ void MMU::setMBCRule(uint8_t setting)
 
 void MMU::setKeyPressed(int key)
 {
-	bool notSet = false;
-	if (((joyPadState >> key) & 1) == 0) {
-		notSet = true;
-	}
-	bool button = true;
-	if (key < 3) {
-		button = false;
-	}
+	bool notSet = ((joyPadState >> key) & 1) == 0;
+	
+	bool button = key > 3;
 	bool requestInterrupt = false;
 	uint8_t keyRequested = io[0];
 
@@ -212,7 +202,7 @@ uint8_t MMU::readByte(uint16_t addr)
 	case 0x5000:
 	case 0x6000:
 	case 0x7000:
-		return romBank[(addr - 0x4000)];
+		return romBank[(addr - 0x4000)+ (currRomBank *  0x4000) - 0x4000];
 
 	case 0x8000:
 	case 0x9000:
@@ -304,49 +294,35 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 			if ((value & 0xF) == 0xA) {
 				enableRAM = true;
 			}
-			else if ((value & 0xF) == 0) {
+			else {
 				enableRAM = false;
 			}
 		}
-		else if (MBC2rules) {
-			if (((addr >> 8) & 1) == 0) {
-				if ((value & 0xF) == 0xA) {
-					enableRAM = true;
-				}
-				else if ((value & 0xF) == 0) {
-					enableRAM = false;
-				}
-			}
-		}
+		
 		break;
 	case 0x2000:
 	case 0x3000:
-		if (MBC1rules) {
-			if (value == 0) {
-				value++;
-			}
-			value &= (~(~0U << 5));
-			currRomBank &= 224;
-			currRomBank |= value;
-		}
-		else if (MBC2rules) {
-			value &= (~(~0U << 4));
-			currRomBank = value;
-		}
+		value <<= 3;
+		value >>= 3;
+		currRomBank >>= 5;
+		currRomBank <<= 5;
+		currRomBank += value;
+		if (currRomBank == 0)
+			currRomBank++;
+
 		break;
 
 	case 0x4000:
 	case 0x5000:
 		if (MBC1rules) {
-			if (ROMBanking) {
-				currentBank = 0;
-				value &= 3;
+			if (enableRAM) {
+				currRomBank <<= 3;
+				currRomBank >>= 3;
+				value >>= 5;
 				value <<= 5;
-				if ((currRomBank & (~(~0U << 5))) == 0) {
-					value++;
-				}
-				currRomBank &= (~(~0U << 5));
-				currRomBank |= value;
+				currRomBank += value;
+				if (currRomBank == 0)
+					currRomBank++;
 			}
 			else {
 				currentBank = value & 3;
@@ -356,11 +332,10 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 	case 0x6000:
 	case 0x7000:
 		if (MBC1rules) {
-			uint8_t bitZero = value & 1;
-			ROMBanking = (bitZero == 0);
-			if (ROMBanking) {
-				currRomBank = 0;
-			}
+			value &= 1;
+			enableRAM = value == 0;
+			if (ROMBanking)
+				currentBank = 0;
 		}
 		break;
 	case 0x8000:
@@ -392,12 +367,7 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 	case 0xB000:
 		if (enableRAM) {
 			if (MBC1rules) {
-				uint16_t newaddress = addr - 0xA000;
-				cartridgeRAM[(0x2000 * currentBank) + newaddress] = value;
-			}
-			else if (MBC2rules && (addr < 0xA200)) {
-				uint16_t newaddress = addr - 0xA000;
-				cartridgeRAM[(0x2000 * currentBank) + newaddress] = value;
+				cartridgeRAM[(0x2000 * currentBank) + (addr - 0xA000)] = value;
 			}
 		}
 		break;

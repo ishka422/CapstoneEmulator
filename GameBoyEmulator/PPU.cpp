@@ -8,9 +8,9 @@ PPU::PPU(CPU* cpu, MMU* memory, std::string gameName)
 	this->memory = memory;
 	this->gameName = gameName;
 	lcdControl = 0;
-	Mat temp(SCREEN_WIDTH*2, SCREEN_HEIGHT*2, CV_8UC1);
+	Mat temp(SCREEN_HEIGHT * 2, SCREEN_WIDTH * 2, CV_8UC1);
 	temp = Scalar::all(255);
-	screen.create(SCREEN_HEIGHT*2, SCREEN_WIDTH*2, CV_8UC1);
+	screen.create(SCREEN_HEIGHT * 2, SCREEN_WIDTH * 2, CV_8UC1);
 	temp.copyTo(screen);
 	imNum = 0;
 }
@@ -21,7 +21,7 @@ PPU::~PPU()
 
 void PPU::updateGraphics()
 {
-	lcdControl = memory->readByte(0xFF40);
+	lcdControl = memory->readByte(LCD_CONTROL);
 	setLCDStatus();
 
 	if (LCDEnabled()) {
@@ -32,14 +32,14 @@ void PPU::updateGraphics()
 	}
 	if (lineCounter <= 0) {
 		memory->incLY();
-		uint8_t currentLine = memory->readByte(0xFF44);
+		uint8_t currentLine = memory->readByte(SCANLINE);
 		lineCounter = 456;
 
 		if (currentLine == 144) {
 			memory->requestInterupt(0);
 		}
 		else if (currentLine > 153) {
-			memory->writeByte(0xFF44, 0);
+			memory->writeByte(SCANLINE, 0);
 		}
 		else if (currentLine < 144) {
 			drawLine();
@@ -47,35 +47,32 @@ void PPU::updateGraphics()
 	}
 }
 
-void PPU::doTiles()
+void PPU::drawTilesOnLine()
 {
-	lcdControl = memory->readByte(0xFF40);
-	if ((lcdControl & 1) == 1) {
-		unsigned short tileData = 0;
-		unsigned short backgroundMemory = 0;
-		bool sign = false;
+	lcdControl = memory->readByte(LCD_CONTROL);
 
-		uint8_t scrollY = memory->readByte(0xFF42);
-		uint8_t scrollX = memory->readByte(0xFF43);
-		uint8_t windowX = memory->readByte(0xFF4A);
-		uint8_t windowY = memory->readByte(0xFF4B) - 7;
+	if (lcdControl & 1) {
+		int scanline = memory->readByte(SCANLINE);
+		uint16_t tileData = 0;
+		uint16_t backgroundMemory = 0;
+		bool sign = false;
 
 		bool windowEnable = false;
 		//bit 5 dictates whether the game is using a window
-		if (((lcdControl >> 5) & 1) == 1) {
-			windowEnable = (windowY <= memory->readByte(0xFF44));
+		if (((lcdControl >> 5) & 1)) {
+			windowEnable = ((memory->readByte(WINDOW_Y) - 7) <= scanline);
 		}
 		//which memory location is the tile located in?
-		if (((lcdControl >> 4) & 1) == 1) {
-			tileData = 0x8000;
+		if (((lcdControl >> 4) & 1)) {
+			tileData = VRAM_START;
 		}
 		else {
-			tileData = 0x8800;
+			tileData = VRAM_START + 0x800;
 			sign = true;
 		}
 
 		if (!windowEnable) {
-			if (((lcdControl >> 3) & 1) == 1) {
+			if (((lcdControl >> 3) & 1)) {
 				backgroundMemory = 0x9C00;
 			}
 			else {
@@ -83,7 +80,7 @@ void PPU::doTiles()
 			}
 		}
 		else {
-			if (((lcdControl >> 6) & 1) == 1)
+			if (((lcdControl >> 6) & 1))
 				backgroundMemory = 0x9C00;
 			else
 				backgroundMemory = 0x9800;
@@ -91,25 +88,24 @@ void PPU::doTiles()
 		uint8_t ypos = 0;
 
 		if (!windowEnable) {
-			ypos = scrollY + memory->readByte(0xFF44);
+			ypos = memory->readByte(SCROLL_Y) + scanline;
 		}
 		else {
-			ypos = memory->readByte(0xFF44) - windowY;
+			ypos = scanline - (memory->readByte(WINDOW_Y) - 7);
 		}
-		unsigned short tileRow = (((uint8_t)(ypos / 8)) * 32);
+		uint16_t tileRow = (((uint8_t)(ypos / 8)) * 32);
 
-		for (int pixel = 0; pixel < 160; pixel++) {
-			uint8_t xpos = pixel + scrollX;
+		for (int pixel = 0; pixel < SCREEN_WIDTH; pixel++) {
+			uint8_t xpos = pixel + memory->readByte(SCROLL_X);
 			if (windowEnable) {
-				if (pixel >= windowX) {
-					xpos = pixel - windowX;
+				if (pixel >= memory->readByte(WINDOW_X)) {
+					xpos = pixel - memory->readByte(WINDOW_X);
 				}
 			}
-			else {
-			}
-			unsigned short tileCol = (xpos / 8);
-			signed short tileNum;
-			unsigned short tileAddress = backgroundMemory + tileRow + tileCol;
+
+			uint16_t tileCol = (xpos / 8);
+			int16_t tileNum;
+			uint16_t tileAddress = backgroundMemory + tileRow + tileCol;
 			if (!sign) {
 				tileNum = memory->readByte(tileAddress);
 			}
@@ -117,38 +113,79 @@ void PPU::doTiles()
 				tileNum = (char)memory->readByte(tileAddress);
 			}
 
-			unsigned short tileLocation = tileData;
+			uint16_t tileOffset = 0;
 			if (sign) {
-				tileLocation += ((tileNum + 128) * 16);
+				tileOffset = ((tileNum + 128) * 16);
 			}
 			else {
-				tileLocation += tileNum * 16;
+				tileOffset = tileNum * 16;
 			}
+
 			uint8_t line = ypos % 8;
 			line *= 2;
 
-			uint8_t data1 = memory->readByte(tileLocation + line);
-			uint8_t data2 = memory->readByte(tileLocation + line + 1);
+			if (memory->replacedTile[tileOffset >> 4]) {
+				if (imageReplace[tileOffset >> 4].cols == 16) {
+					int intensityLoc = xpos % 8;
+					intensityLoc *= 2;
+					uchar intenArr[4];
+					intenArr[0] = 255 - imageReplace[tileOffset >> 4].at<uchar>(line, intensityLoc);
+					intenArr[1] = 255 - imageReplace[tileOffset >> 4].at<uchar>(line, intensityLoc + 1);
+					intenArr[2] = 255 - imageReplace[tileOffset >> 4].at<uchar>(line + 1, intensityLoc);
+					intenArr[3] = 255 - imageReplace[tileOffset >> 4].at<uchar>(line + 1, intensityLoc + 1);
 
+					uchar colArr[4];
 
-			int intensityBit = xpos % 8;
-			intensityBit -= 7;
-			intensityBit *= -1;
+					colArr[0] = getPallet(0xFF47, intenArr[0] / 85);
+					colArr[1] = getPallet(0xFF47, intenArr[1] / 85);
+					colArr[2] = getPallet(0xFF47, intenArr[2] / 85);
+					colArr[3] = getPallet(0xFF47, intenArr[3] / 85);
 
-			int intensity = (data2 >> intensityBit) & 1;
-			intensity <<= 1;
-			intensity |= (data1 >> intensityBit) & 1;
+					if ((scanline >= 0) && (scanline <= 143) && (pixel >= 0) && (pixel <= 159)) {
+						screen.at<uchar>(scanline * 2, pixel * 2) = colArr[0];
+						screen.at<uchar>(scanline * 2, pixel * 2 + 1) = colArr[1];
+						screen.at<uchar>(scanline * 2 + 1, pixel * 2) = colArr[2];
+						screen.at<uchar>(scanline * 2 + 1, pixel * 2 + 1) = colArr[3];
+					}
+				}
+				else if(imageReplace[tileOffset >> 4].cols == 8){
+					line /= 2;
 
-			uchar col = getPallet(0xFF47, intensity);
+					int intensityLoc = xpos % 8;
+					uchar intensity = 255 - imageReplace[tileOffset >> 4].at<uchar>(line, intensityLoc);
+					uchar color = getPallet(0xFF47, intensity / 85);
 
-			int finally = memory->readByte(0xFF44);
-			if ((finally < 0) || (finally > 143) || (pixel < 0) || (pixel > 159)) {
-				continue;
+					if ((scanline >= 0) && (scanline <= 143) && (pixel >= 0) && (pixel <= 159)) {
+						screen.at<uchar>(scanline * 2, pixel * 2) = color;
+						screen.at<uchar>(scanline * 2, pixel * 2 + 1) = color;
+						screen.at<uchar>(scanline * 2 + 1, pixel * 2) = color;
+						screen.at<uchar>(scanline * 2 + 1, pixel * 2 + 1) = color;
+					}
+
+				}
 			}
-			screen.at<uchar>(finally*2, pixel*2) = saturate_cast<uchar>(col);
-			screen.at<uchar>(finally*2, pixel*2+1) = saturate_cast<uchar>(col);
-			screen.at<uchar>(finally*2+1, pixel*2) = saturate_cast<uchar>(col);
-			screen.at<uchar>(finally*2+1, pixel*2+1) = saturate_cast<uchar>(col);
+			else {
+				uint16_t tileLocation = tileData + tileOffset;
+
+				uint8_t data1 = memory->readByte(tileLocation + line);
+				uint8_t data2 = memory->readByte(tileLocation + line + 1);
+
+				int intensityBit = 7 - (xpos % 8);
+
+				int intensity = (data2 >> intensityBit) & 1;
+				intensity <<= 1;
+				intensity |= (data1 >> intensityBit) & 1;
+
+				uchar col = getPallet(0xFF47, intensity);
+
+				if ((scanline < 0) || (scanline > 143) || (pixel < 0) || (pixel > 159)) {
+					continue;
+				}
+				screen.at<uchar>(scanline * 2, pixel * 2) = saturate_cast<uchar>(col);
+				screen.at<uchar>(scanline * 2, pixel * 2 + 1) = saturate_cast<uchar>(col);
+				screen.at<uchar>(scanline * 2 + 1, pixel * 2) = saturate_cast<uchar>(col);
+				screen.at<uchar>(scanline * 2 + 1, pixel * 2 + 1) = saturate_cast<uchar>(col);
+			}
 		}
 	}
 }
@@ -169,78 +206,171 @@ uchar PPU::getPallet(uint16_t address, int intensity) {
 	return pixel;
 }
 
-void PPU::doSprites()
+void PPU::drawSpritesOnLine()
 {
-	lcdControl = memory->readByte(0xFF40);
-	bool use8x16 = ((lcdControl >> 2) & 1) == 1;
+	lcdControl = memory->readByte(LCD_CONTROL);
+	bool use2Tiles = ((lcdControl >> 2) & 1);
 
-	for (int sprite = 0; sprite < 40; sprite++)
+	for (int spriteIndex = 0; spriteIndex < 160; spriteIndex += 4)
 	{
-		uint8_t index = sprite * 4;
-		uint8_t yPos = memory->readByte(0xFE00 + index) - 16;
-		uint8_t xPos = memory->readByte(0xFE00 + index + 1) - 8;
-		uint8_t tileLocation = memory->readByte(0xFE00 + index + 2);
-		uint8_t attributes = memory->readByte(0xFE00 + index + 3);
+		uint8_t yPos = memory->readByte(0xFE00 + spriteIndex) - 16;
+		uint8_t xPos = memory->readByte(0xFE00 + spriteIndex + 1) - 8;
+		uint8_t tileLocation = memory->readByte(0xFE00 + spriteIndex + 2);
+		uint8_t attributes = memory->readByte(0xFE00 + spriteIndex + 3);
 
-		bool yFlip = ((attributes >> 6) & 1) == 1;
-		bool xFlip = ((attributes >> 5) & 1) == 1;
+		bool flipOnY = ((attributes >> 6) & 1);
+		bool flipOnX = ((attributes >> 5) & 1);
 
-		int scanline = memory->readByte(0xFF44);
+		int scanline = memory->readByte(SCANLINE);
 
 		int ysize = 8;
-		if (use8x16)
+		if (use2Tiles)
 			ysize = 16;
 
 		if ((scanline >= yPos) && (scanline < (yPos + ysize)))
 		{
 			int line = scanline - yPos;
 
-			if (yFlip)
-			{
-				line -= ysize;
-				line *= -1;
+			if (flipOnY)
+				line = ysize - line;
+			
+			int tileOffset = tileLocation * 16;
+			if (memory->replacedTile[tileOffset >> 4]) {
+				if (imageReplace[tileOffset >> 4].cols == 16) {
+					line *= 2;
+					for (int tilePixel = 7; tilePixel >= 0; tilePixel--)
+					{
+						int colorBit = 7 - tilePixel;
+
+						if (flipOnX)
+						{
+							colorBit = tilePixel;
+						}
+
+						int intensityLoc = colorBit;
+						intensityLoc *= 2;
+						uint16_t pallet = 0;
+
+						if ((attributes >> 4) & 1)
+							pallet = 0xFF49;
+						else
+							pallet = 0xFF48;
+
+
+						uchar intenArr[4];
+						intenArr[0] = 255 - imageReplace[tileOffset >> 4].at<uchar>(line, intensityLoc);
+						intenArr[1] = 255 - imageReplace[tileOffset >> 4].at<uchar>(line, intensityLoc + 1);
+						intenArr[2] = 255 - imageReplace[tileOffset >> 4].at<uchar>(line + 1, intensityLoc);
+						intenArr[3] = 255 - imageReplace[tileOffset >> 4].at<uchar>(line + 1, intensityLoc + 1);
+
+						uchar colArr[4];
+
+						colArr[0] = getPallet(pallet, intenArr[0] / 85);
+						colArr[1] = getPallet(pallet, intenArr[1] / 85);
+						colArr[2] = getPallet(pallet, intenArr[2] / 85);
+						colArr[3] = getPallet(pallet, intenArr[3] / 85);
+
+						int xPix = 7 - tilePixel;
+						int pixel = xPos + xPix;
+
+						if ((scanline >= 0) && (scanline <= 143) && (pixel >= 0) && (pixel <= 159)) {
+							if(colArr[0] !=255)
+							screen.at<uchar>(scanline * 2, pixel * 2) = colArr[0];
+							if (colArr[1] != 255)
+							screen.at<uchar>(scanline * 2, pixel * 2 + 1) = colArr[1];
+							if (colArr[2] != 255)
+							screen.at<uchar>(scanline * 2 + 1, pixel * 2) = colArr[2];
+							if (colArr[3] != 255)
+							screen.at<uchar>(scanline * 2 + 1, pixel * 2 + 1) = colArr[3];
+						}
+
+
+
+					}
+
+
+				}
+				else if(imageReplace[tileOffset >> 4].cols == 8){
+					for (int tilePixel = 7; tilePixel >= 0; tilePixel--)
+					{
+						int colorBit = 7 - tilePixel;
+
+						if (flipOnX)
+						{
+							colorBit = tilePixel;
+						}
+						int intensityLoc = colorBit;
+						uint16_t pallet = 0;
+
+						if ((attributes >> 4) & 1)
+							pallet = 0xFF49;
+						else
+							pallet = 0xFF48;
+
+						uchar intensity = 255 - imageReplace[tileOffset >> 4].at<uchar>(line, intensityLoc);
+						uchar color = getPallet(pallet, intensity / 85);
+						if (color == 255)
+							continue;
+						int xPix = 7 - tilePixel;
+						int pixel = xPos + xPix;
+						if ((scanline < 0) || (scanline > 143) || (pixel < 0) || (pixel > 159)) {
+							continue;
+						}
+
+						screen.at<uchar>(scanline * 2, pixel * 2) = color;
+						screen.at<uchar>(scanline * 2, pixel * 2 + 1) = color;
+						screen.at<uchar>(scanline * 2 + 1, pixel * 2) = color;
+						screen.at<uchar>(scanline * 2 + 1, pixel * 2 + 1) = color;
+
+					}
+
+
+				}
 			}
-
-			line *= 2;
-			unsigned short dataAddress = (0x8000 + (tileLocation * 16)) + line;
-			uint8_t data1 = memory->readByte(dataAddress);
-			uint8_t data2 = memory->readByte(dataAddress + 1);
-
-			for (int tilePixel = 7; tilePixel >= 0; tilePixel--)
-			{
-				int colorBit = tilePixel;
-
-				if (xFlip)
+			else {
+				line *= 2;
+				uint16_t dataAddress = (VRAM_START + (tileLocation * 16)) + line;
+				uint8_t data1 = memory->readByte(dataAddress);
+				uint8_t data2 = memory->readByte(dataAddress + 1);
+				
+				for (int tilePixel = 7; tilePixel >= 0; tilePixel--)
 				{
-					colorBit -= 7;
-					colorBit *= -1;
+					int colorBit = tilePixel;
+
+					if (flipOnX)
+					{
+						colorBit = 7 - colorBit;
+					}
+
+					int intensity = (data2 >> colorBit) & 1;
+					intensity <<= 1;
+					intensity |= (data1 >> colorBit) & 1;
+
+					uint16_t pallet = 0;
+
+					if ((attributes >> 4) & 1)
+						pallet = 0xFF49;
+					else
+						pallet = 0xFF48;
+
+					uchar value = getPallet(pallet, intensity);
+
+					// white is transparent for sprites.
+					if (value == 255)
+						continue;
+
+					int xPix = 7 - tilePixel;
+					int pixel = xPos + xPix;
+
+					if ((scanline < 0) || (scanline > 143) || (pixel < 0) || (pixel > 159)) {
+						continue;
+					}
+
+					screen.at<uchar>(scanline * 2, pixel * 2) = value;
+					screen.at<uchar>(scanline * 2, pixel * 2 + 1) = value;
+					screen.at<uchar>(scanline * 2 + 1, pixel * 2) = value;
+					screen.at<uchar>(scanline * 2 + 1, pixel * 2 + 1) = value;
 				}
-
-				int colorNum = (data2 >> colorBit) & 1;
-				colorNum <<= 1;
-				colorNum |= (data1 >> colorBit) & 1;
-
-				unsigned short colorAddress = ((attributes >> 4) & 1) == 1 ? 0xFF49 : 0xFF48;
-				uchar value = getPallet(colorAddress, colorNum);
-
-				// white is transparent for sprites.
-				if (value == 255)
-					continue;
-
-				int xPix = 0 - tilePixel;
-				xPix += 7;
-
-				int pixel = xPos + xPix;
-
-				// sanity check
-				if ((scanline < 0) || (scanline > 143) || (pixel < 0) || (pixel > 159))
-				{
-					continue;
-				}
-				screen.at<uchar>(scanline*2, pixel*2) = value;
-				screen.at<uchar>(scanline*2, pixel*2+1) = value;
-				screen.at<uchar>(scanline*2+1, pixel*2) = value;
-				screen.at<uchar>(scanline*2+1, pixel*2+1) = value;
 			}
 		}
 	}
@@ -248,16 +378,16 @@ void PPU::doSprites()
 
 void PPU::setLCDStatus()
 {
-	uint8_t status = memory->readByte(0xFF41);
+	uint8_t status = memory->readByte(LCD_STATUS);
 	if (!LCDEnabled()) {
 		lineCounter = 456;
-		memory->writeByte(0xFF44, 0);
+		memory->writeByte(SCANLINE, 0);
 		status &= (~(~0U << 6) << 2);
 		status |= 1;
-		memory->writeByte(0xFF41, status);
+		memory->writeByte(LCD_STATUS, status);
 		return;
 	}
-	uint8_t currentLine = memory->readByte(0xFF44);
+	uint8_t currentLine = memory->readByte(SCANLINE);
 	uint8_t currMode = status & (~(~0U << 2));
 
 	uint8_t mode = 0;
@@ -267,19 +397,16 @@ void PPU::setLCDStatus()
 		mode = 1;
 		status |= 1;
 		status &= ~(1 << 1);
-		requestInterupt = ((status >> 4) & 1) == 1;
+		requestInterupt = ((status >> 4) & 1);
 	}
 	else {
-		int mode2Bounds = 456 - 80;
-		int mode3Bounds = mode2Bounds - 172;
-
-		if (lineCounter > mode2Bounds) {
+		if (lineCounter > 376) { // 456 - 377
 			mode = 2;
 			status |= (1 << 1);
 			status &= ~(1 << 0);
-			requestInterupt = ((status >> 5) & 1) == 1;
+			requestInterupt = ((status >> 5) & 1);
 		}
-		else if (lineCounter >= mode3Bounds) {
+		else if (lineCounter >= 204) { // 376 - 204
 			mode = 3;
 			status |= (1 << 1);
 			status |= 1;
@@ -288,13 +415,13 @@ void PPU::setLCDStatus()
 			mode = 0;
 			status &= ~(1 << 1);
 			status &= ~1;
-			requestInterupt = ((status >> 3) & 1) == 1;
+			requestInterupt = ((status >> 3) & 1);
 		}
 
 		if (requestInterupt && (mode != currMode)) {
 			memory->requestInterupt(1);
 		}
-		if (memory->readByte(0xFF44) == memory->readByte(0xFF45)) {
+		if (memory->readByte(SCANLINE) == memory->readByte(0xFF45)) {
 			status |= (1 << 2);
 			if (((status >> 6) & 1) == 1) {
 				memory->requestInterupt(1);
@@ -303,23 +430,23 @@ void PPU::setLCDStatus()
 		else {
 			status &= ~(1 << 2);
 		}
-		memory->writeByte(0xFF41, status);
+		memory->writeByte(LCD_STATUS, status);
 	}
 }
 
 bool PPU::LCDEnabled()
 {
-	return ((memory->readByte(0xFF40) >> 7) & 1) == 1;
+	return ((memory->readByte(LCD_CONTROL) >> 7) & 1);
 }
 
 void PPU::drawLine()
 {
-	uint8_t control = memory->readByte(0xFF40);
+	uint8_t control = memory->readByte(LCD_CONTROL);
 	if ((control & 1) == 1) {
-		doTiles();
+		drawTilesOnLine();
 	}
 	if (((control >> 1) & 1) == 1) {
-		doSprites();
+		drawSpritesOnLine();
 	}
 }
 
@@ -332,6 +459,7 @@ void PPU::loadReplacements()
 {
 	vector<string> fileList;
 	string path = gameName + "-replace";
+	//string path = gameName + "-replace";
 
 	for (const auto & entry : std::filesystem::directory_iterator(path)) {
 		fileList.push_back(entry.path().string());
@@ -387,8 +515,8 @@ void PPU::drawBackground()
 		for (int j = 0; j < 24; j++) {
 			for (int a = 0; a < 8; a++) {
 				for (int b = 0; b < 8; b++) {
-					uint8_t data1 = memory->readByte(0x8000 + tileIndex);
-					uint8_t data2 = memory->readByte(0x8000 + tileIndex + 1);
+					uint8_t data1 = memory->readByte(VRAM_START + tileIndex);
+					uint8_t data2 = memory->readByte(VRAM_START + tileIndex + 1);
 
 					uint8_t value = (data2 >> b) & 1;
 					value <<= 1;
@@ -416,8 +544,8 @@ void PPU::saveSprites()
 			if (memory->changedTile[i]) {
 				int tileIndex = 0;
 				for (int x = 0; x < 8; x++) {
-					uint8_t data1 = memory->readByte(0x8000 + (i << 4) + tileIndex);
-					uint8_t data2 = memory->readByte(0x8000 + (i << 4) + tileIndex + 1);
+					uint8_t data1 = memory->readByte(VRAM_START + (i << 4) + tileIndex);
+					uint8_t data2 = memory->readByte(VRAM_START + (i << 4) + tileIndex + 1);
 					for (int y = 0; y < 8; y++) {
 						uint8_t value = (data2 >> y) & 1;
 						value <<= 1;
@@ -472,8 +600,8 @@ void PPU::handleReplacement()
 				Mat tile(8, 8, CV_8UC1);
 				int tileIndex = 0;
 				for (int x = 0; x < 8; x++) {
-					uint8_t data1 = memory->readByte(0x8000 + (replacedLocation[i] << 4) + tileIndex);
-					uint8_t data2 = memory->readByte(0x8000 + (replacedLocation[i] << 4) + tileIndex + 1);
+					uint8_t data1 = memory->readByte(VRAM_START + (replacedLocation[i] << 4) + tileIndex);
+					uint8_t data2 = memory->readByte(VRAM_START + (replacedLocation[i] << 4) + tileIndex + 1);
 					for (int y = 0; y < 8; y++) {
 						uint8_t value = (data2 >> y) & 1;
 						value <<= 1;
@@ -498,8 +626,8 @@ void PPU::handleReplacement()
 					if (memory->changedTile[j] && !memory->replacedTile[j]) {
 						int tileIndex = 0;
 						for (int x = 0; x < 8; x++) {
-							uint8_t data1 = memory->readByte(0x8000 + (j << 4) + tileIndex);
-							uint8_t data2 = memory->readByte(0x8000 + (j << 4) + tileIndex + 1);
+							uint8_t data1 = memory->readByte(VRAM_START + (j << 4) + tileIndex);
+							uint8_t data2 = memory->readByte(VRAM_START + (j << 4) + tileIndex + 1);
 							for (int y = 0; y < 8; y++) {
 								uint8_t value = (data2 >> y) & 1;
 								value <<= 1;
@@ -517,32 +645,9 @@ void PPU::handleReplacement()
 						if (cv::sum(dst) == Scalar(0)) {
 							tileLoaded[i] = true;
 							replacedLocation[i] = j;
-							for (int y = 0; y < replaceList[i].rows; y++) {
-								uint8_t data1 = 0;
-								uint8_t data2 = 0;
-								for (int x = 0; x < replaceList[i].cols; x++) {
-									uchar pixel = replaceList[i].at<uchar>(y, x);
-									if (pixel == 255)
-									{
-										//do nothing
-									}
-									if (pixel == 170) {
-										data1 |= (1 << (7-x) );
-									}
-									if (pixel == 85) {
-										data2 |= (1 << (7 - x));
-									}
-									if (pixel == 0) {
-										data1 |= (1 << (7 - x));
-										data2 |= (1 << (7 - x));
-									}
-								}
-								memory->writeByte(0x8000 + (j << 4) + (y * 2), data1);
-								memory->writeByte(0x8000 + (j << 4) + (y * 2) + 1, data2);
-							}
+							imageReplace[j] = replaceList[i].clone();
 							memory->replacedTile[j] = true;
 						}
-						
 					}
 				}
 			}

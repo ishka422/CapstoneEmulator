@@ -46,7 +46,7 @@ public:
 	uint8_t rom[0x4000];
 
 	//$4000 - $7FFF:	Cartridge ROM - Switchable bank
-	uint8_t romBank[0x8000];
+	uint8_t romBank[0xC000];
 
 	//$8000 - $97FF:	Character RAM
 	uint8_t CRAM[0x1800];

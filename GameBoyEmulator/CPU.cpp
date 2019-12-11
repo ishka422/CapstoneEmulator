@@ -586,32 +586,7 @@ void CPU::execute()
 	updateTimers();
 }
 
-void CPU::doInterrupt(int i, uint8_t req)
-{
-	halted = false;
-	masterInterrupt = false;
-	req &= (0xFF & ~(1 << i));
-	memory->writeByte(0xFF0F, req);
-	PUSH(PC);
 
-	switch (i) {
-	case 0:
-		PC->setValue(0x40);
-		break;
-	case 1:
-		PC->setValue(0x48);
-		break;
-	case 2:
-		PC->setValue(0x50);
-		break;
-	case 3:
-		PC->setValue(0x58);
-		break;
-	case 4:
-		PC->setValue(0x60);
-		break;
-	}
-}
 
 void CPU::handleInterrupts()
 {
@@ -625,7 +600,12 @@ void CPU::handleInterrupts()
 			for (int i = 0; i < 5; i++) {
 				if (((requestedInterrupts >> i) & 1) == 1) {
 					if (((enabledInterrupts >> i) & 1) == 1) {
-						doInterrupt(i, requestedInterrupts);
+						halted = false;
+						masterInterrupt = false;
+						requestedInterrupts &= (0xFF & ~(1 << i));
+						memory->writeByte(0xFF0F, requestedInterrupts);
+						PUSH(PC);
+						PC->setValue(0x40 + (i * 0x8));
 					}
 				}
 			}

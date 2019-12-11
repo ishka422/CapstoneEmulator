@@ -8,11 +8,13 @@
 #include <SDL2/SDL.h>
 #include "main.h"
 
+#define MAXCYCLES 69905
+
 using namespace std;
 
 typedef unsigned char BYTE;
 
-const int MAXCYCLES = 69905;
+
 MMU* memory;
 CPU* processor;
 PPU* ppu;
@@ -74,7 +76,6 @@ void handleInput(SDL_Event& event) {
 			memory -> setKeyPressed(key);
 		}
 	}
-	//If a key was released
 	else if (event.type == SDL_KEYUP)
 	{
 		int key = -1;
@@ -99,10 +100,9 @@ void handleInput(SDL_Event& event) {
 
 int main(int argc, char *argv[]) {
 	if (argc > 1) {
+		
+		Mat screen(Size(160 *2, 144*2), CV_8UC1);
 		SDL_Event event;
-		SDL_Window *window{ SDL_CreateWindow("window", 0,0,0,0,0) };
-		Mat screen;
-		/*screen.create(160, 144, CV_8UC1);*/
 		bool logOPs = false;
 
 		ifstream gameROM;
@@ -127,11 +127,12 @@ int main(int argc, char *argv[]) {
 		memory->setMBCRule(cartridgeBlock[0x147]);
 		processor = new CPU(memory);
 		ppu = new PPU(processor, memory, gameName);
-
-		ppu->loadReplacements();
-
+		if (argc > 3) {
+			if (*argv[3] == 'r')
+				ppu->loadReplacements();
+		}
 		int key = 0;
-		while (true) {
+		while (key != -1) {
 			while (SDL_PollEvent(&event)) {
 				handleInput(event);
 			}
@@ -146,9 +147,18 @@ int main(int argc, char *argv[]) {
 					processor->handleInterrupts();
 				}
 				ppu->showScreen().copyTo(screen);
-				//ppu->saveSprites();
-				ppu->drawBackground();
-				ppu->handleReplacement();
+
+				if (argc > 2) {
+					if(*argv[2] == 'd')
+						ppu->drawBackground();
+					if (argc > 3) {
+						if (*argv[3] == 's') {
+							ppu->saveSprites();
+						}else if(*argv[3] == 'r') {
+							ppu->handleReplacement();
+						}
+					}
+				}
 				imshow(gameName, screen);
 				key = waitKey(1);
 			}
