@@ -13,6 +13,7 @@ PPU::PPU(CPU* cpu, MMU* memory, std::string gameName)
 	screen.create(SCREEN_HEIGHT * 2, SCREEN_WIDTH * 2, CV_8UC1);
 	temp.copyTo(screen);
 	imNum = 0;
+	lineCounter = 0;
 }
 
 PPU::~PPU()
@@ -28,6 +29,7 @@ void PPU::updateGraphics()
 		lineCounter -= cpu->cycles;
 	}
 	else {
+
 		return;
 	}
 	if (lineCounter <= 0) {
@@ -42,6 +44,8 @@ void PPU::updateGraphics()
 			memory->writeByte(SCANLINE, 0);
 		}
 		else if (currentLine < 144) {
+			
+
 			drawLine();
 		}
 	}
@@ -177,7 +181,6 @@ void PPU::drawTilesOnLine()
 				intensity |= (data1 >> intensityBit) & 1;
 
 				uchar col = getPallet(0xFF47, intensity);
-
 				if ((scanline < 0) || (scanline > 143) || (pixel < 0) || (pixel > 159)) {
 					continue;
 				}
@@ -436,11 +439,10 @@ void PPU::setLCDStatus()
 
 bool PPU::LCDEnabled()
 {
-	return ((memory->readByte(LCD_CONTROL) >> 7) & 1);
+	return ((memory->readByte(LCD_CONTROL) >> 7) & 1) == 1;
 }
 
-void PPU::drawLine()
-{
+void PPU::drawLine(){
 	uint8_t control = memory->readByte(LCD_CONTROL);
 	if ((control & 1) == 1) {
 		drawTilesOnLine();

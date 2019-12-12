@@ -5,15 +5,17 @@
 #include "CPU.h"
 #include "PPU.h"
 #include <opencv2/core/core.hpp>
+#include <opencv2/core/types_c.h>
 #include <SDL2/SDL.h>
 #include "main.h"
 
-#define MAXCYCLES 69905
 
 using namespace std;
 
 typedef unsigned char BYTE;
 
+const int MAXCYCLES =  69905;
+bool quit = false;
 
 MMU* memory;
 CPU* processor;
@@ -57,7 +59,10 @@ long getFileSize(FILE *file)
 
 
 void handleInput(SDL_Event& event) {
-	if (event.type == SDL_KEYDOWN)
+	if (event.type == SDL_QUIT) {
+		quit = true;
+	}
+	else if (event.type == SDL_KEYDOWN)
 	{
 		int key = -1;
 		switch (event.key.keysym.sym)
@@ -101,9 +106,12 @@ void handleInput(SDL_Event& event) {
 int main(int argc, char *argv[]) {
 	if (argc > 1) {
 		
-		Mat screen(Size(160 *2, 144*2), CV_8UC1);
+		Mat screen;
 		SDL_Event event;
-		bool logOPs = false;
+		bool logOPs = false; 
+		
+
+		
 
 		ifstream gameROM;
 		gameROM.open(argv[1], ios::in | ios::binary | ios::ate);
@@ -115,13 +123,15 @@ int main(int argc, char *argv[]) {
 
 		int cyclesThisUpdate = 0;
 		
-		std::string gameName("");
-
+		string gameName("");
 		for (int i = 0x0134; i < 0x144; i++) {
 			if (cartridgeBlock[i] != 0x00) {
 				gameName += (char)cartridgeBlock[i];
 			}
 		}
+	
+		SDL_Window *window{ SDL_CreateWindow( "spriteBoy", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,160 * 2,144 * 2,0) };
+		SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, 0);
 
 		memory = new MMU(cartridgeBlock);
 		memory->setMBCRule(cartridgeBlock[0x147]);
@@ -132,7 +142,7 @@ int main(int argc, char *argv[]) {
 				ppu->loadReplacements();
 		}
 		int key = 0;
-		while (key != -1) {
+		while (!quit) {
 			while (SDL_PollEvent(&event)) {
 				handleInput(event);
 			}
@@ -159,12 +169,22 @@ int main(int argc, char *argv[]) {
 						}
 					}
 				}
-				imshow(gameName, screen);
-				key = waitKey(1);
+				
+				cvtColor(screen, screen, COLOR_RGB2RGBA);
+				IplImage opencvimg2 = (IplImage)screen;
+				IplImage* opencvimg = &opencvimg2;
+				SDL_Surface *frameSurface = SDL_CreateRGBSurfaceFrom(
+					(void*)opencvimg->imageData,
+					opencvimg->width, opencvimg->height,
+					opencvimg->depth*opencvimg->nChannels,
+					opencvimg->widthStep,
+					0xff0000, 0x00ff00, 0x0000ff, 0xFF000000);
+				SDL_Texture * texture = SDL_CreateTextureFromSurface(renderer, frameSurface);
+				SDL_RenderCopy(renderer, texture, NULL, NULL);
+				SDL_RenderPresent(renderer);
 			}
 		}
 		
-		getchar();
 		return 0;
 	}
 	else {
