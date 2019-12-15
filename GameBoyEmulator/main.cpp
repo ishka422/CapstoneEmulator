@@ -6,6 +6,7 @@
 #include "PPU.h"
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/types_c.h>
+#include <opencv2/core/core_c.h>
 #include <SDL2/SDL.h>
 #include "main.h"
 
@@ -182,6 +183,9 @@ int main(int argc, char *argv[]) {
 				SDL_Texture * texture = SDL_CreateTextureFromSurface(renderer, frameSurface);
 				SDL_RenderCopy(renderer, texture, NULL, NULL);
 				SDL_RenderPresent(renderer);
+				SDL_DestroyTexture(texture);
+				SDL_FreeSurface(frameSurface);
+				
 			}
 		}
 		
