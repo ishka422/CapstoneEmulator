@@ -41,19 +41,19 @@ inline HexCharStruct hex(unsigned char _c)
 long getFileSize(FILE *file)
 
 {
-	
-		long lCurPos, lEndPos;
-	
-		lCurPos = ftell(file);
-	
-		fseek(file, 0, 2);
-	
-		lEndPos = ftell(file);
-	
-		fseek(file, lCurPos, 0);
-	
-		return lEndPos;
-	
+
+	long lCurPos, lEndPos;
+
+	lCurPos = ftell(file);
+
+	fseek(file, 0, 2);
+
+	lEndPos = ftell(file);
+
+	fseek(file, lCurPos, 0);
+
+	return lEndPos;
+
 }
 
 
@@ -105,13 +105,13 @@ void handleInput(SDL_Event& event) {
 
 int main(int argc, char *argv[]) {
 	if (argc > 1) {
-		
+
 		Mat screen;
 		SDL_Event event;
-		bool logOPs = false; 
-		
+		bool logOPs = false;
 
-		
+
+
 
 		ifstream gameROM;
 		gameROM.open(argv[1], ios::in | ios::binary | ios::ate);
@@ -122,14 +122,14 @@ int main(int argc, char *argv[]) {
 		gameROM.read((char*)cartridgeBlock, size);
 
 		int cyclesThisUpdate = 0;
-		
+
 		string gameName("");
 		for (int i = 0x0134; i < 0x144; i++) {
 			if (cartridgeBlock[i] != 0x00) {
 				gameName += (char)cartridgeBlock[i];
 			}
 		}
-	
+
 		SDL_Window *window{ SDL_CreateWindow( "spriteBoy", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,160 * 2,144 * 2,0) };
 		SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, 0);
 
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
 						}
 					}
 				}
-				
+
 				cvtColor(screen, screen, COLOR_RGB2RGBA);
 				IplImage opencvimg2 = (IplImage)screen;
 				IplImage* opencvimg = &opencvimg2;
@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 				SDL_RenderPresent(renderer);
 			}
 		}
-		
+
 		return 0;
 	}
 	else {
