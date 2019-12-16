@@ -51,7 +51,9 @@ endif()
 #####################################
 
 find_package( OpenCV REQUIRED )
+find_package( SDL2 REQUIRED )
 include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(${SDL2_INCLUDE_DIRS})
 
 #####################################
 # Require C++17
