@@ -27,6 +27,7 @@ class MMU
 	int* tCycles;
 	uint8_t* opcode;
 	uint8_t joyPadState;
+	uint8_t* romBlock;
 
 	
 	

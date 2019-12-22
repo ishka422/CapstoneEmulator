@@ -51,14 +51,15 @@ MMU::MMU(uint8_t* block)
 	memset(ppu, 0, sizeof(ppu));
 	memset(changedTile, false, sizeof(changedTile));
 	memset(replacedTile, false, sizeof(replacedTile));
-	for (int i = 0; i < 0x4000; i++)
+	romBlock = block;
+	/*for (int i = 0; i < 0x4000; i++)
 	{
 		rom[i] = block[i];
 	}
 	for (int i = 0x4000; i < 0xF000; i++)
 	{
 		romBank[i - 0x4000] = block[i];
-	}
+	}*/
 
 	joyPadState = 0xff;
 	writingToVRAM = false;
@@ -191,18 +192,19 @@ uint8_t MMU::readByte(uint16_t addr)
 			}
 		}
 		else {
-			return rom[addr];
+			return romBlock[addr];
 		}
 	case 0x1000:
 	case 0x2000:
 	case 0x3000:
-		return rom[addr];
+		return romBlock[addr];
 
 	case 0x4000:
 	case 0x5000:
 	case 0x6000:
 	case 0x7000:
-		return romBank[(addr - 0x4000)+ (currRomBank *  0x4000) - 0x4000];
+		std::cout << std::hex << currRomBank << std::endl;
+		return romBank[addr + ((currRomBank-1) * 0x4000)];
 
 	case 0x8000:
 	case 0x9000:
@@ -222,7 +224,7 @@ uint8_t MMU::readByte(uint16_t addr)
 		}
 	case 0xA000:
 	case 0xB000:
-		return cartridgeRAM[(addr - 0xA000)];
+		return cartridgeRAM[(0x2000 * currentBank) + (addr - 0xA000)];
 	case 0xC000:
 		return ROMBank[addr - 0xC000];
 	case 0xD000:
@@ -334,7 +336,7 @@ void MMU::writeByte(uint16_t addr, uint8_t value)
 		if (MBC1rules) {
 			value &= 1;
 			enableRAM = value == 0;
-			if (ROMBanking)
+			if (enableRAM)
 				currentBank = 0;
 		}
 		break;

@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
 		int cyclesThisUpdate = 0;
 
 		string gameName("");
-		for (int i = 0x0134; i < 0x144; i++) {
+		for (int i = 0x0134; i < 0x143; i++) {
 			if (cartridgeBlock[i] != 0x00) {
 				gameName += (char)cartridgeBlock[i];
 			}

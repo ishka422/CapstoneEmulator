@@ -52,7 +52,7 @@ endif()
 
 find_package( OpenCV REQUIRED )
 find_package( SDL2 REQUIRED )
-include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(${OpenCV_INCLUDE_DIRS} )
 include_directories(${SDL2_INCLUDE_DIRS})
 
 #####################################
@@ -93,7 +93,7 @@ file(GLOB GENERAL_SOURCES
 # Set general libraries
 #####################################
 
-set(GENERAL_LIBRARIES ${OpenCV_LIBS})
+set(GENERAL_LIBRARIES ${OpenCV_LIBS} ${SDL2_LIBS})
 if(LINUX)	
 	set(GENERAL_LIBRARIES ${GENERAL_LIBRARIES} stdc++fs)	
 endif()
